@@ -1,0 +1,333 @@
+#options('repos' = c(CRAN='http://cran.stat.unipd.it', CRANextra='http://www.stats.ox.ac.uk/pub/RWin'))
+options('repos' = c(CRAN='http://cran.rstudio.com', CRANextra='http://www.stats.ox.ac.uk/pub/RWin'))
+
+set.seed(666)
+
+# http://stackoverflow.com/questions/1189759/expert-r-users-whats-in-your-rprofile#comment12948814_2139002
+.startup <- new.env()
+
+# grep senza differenza maiuscole/minuscole
+assign('grepi',
+	function(p, x) {
+		grep(p, x, ignore.case=TRUE, value=TRUE)
+	}
+, env=.startup)
+
+# Tipo 'fre' di SPSS. Bisogna avere installato il pacchetto 'xtable'
+assign('fre',
+	function(x, html=FALSE, digits=1, total=TRUE) {
+		
+		tab1 <- table(x, useNA='always')
+		tab2 <- prop.table(tab1[])*100
+		tab3 <- cumsum(tab2)
+		fretab <- data.frame(freq=tab1[], perc=round(tab2,digits), cum=round(tab3,digits))
+		x <- names(tab1)
+		x[is.na(x)] <- 'NA'
+		if ( total ) {
+			fretab <- data.frame(rbind(fretab, c(sum(fretab$freq), 100, 100)))
+			rownames(fretab) <- c(x, 'total')
+		} else {
+			rownames(fretab) <- x
+		}
+		
+
+		if ( html ) {
+			require(xtable)
+			file <- tempfile(fileext=c('.html'))
+			fretab <- xtable(fretab, digits=digits)
+			print(fretab, type='html', file=file)
+			browseURL(file)
+		} else {
+			return(fretab)
+		}
+	}
+, env=.startup)
+
+assign('xz_co',
+	function(obj, file=NA) {
+		if ( missing(file) ) {
+			stop('File?')
+		} else {
+			xzfile <- xzfile(file, 'w', compression=9)  # compressed file
+			write.table(a, file=xzfile)
+			close(xzfile)
+			# TODO controlla che sia stato scritto
+		}
+	}
+, env=.startup)
+
+assign('xz_ex',
+	function(file=NA) {
+		if ( missing(file) ) {
+			stop('File?')
+		} else {
+			return(read.table(gzfile(file)))
+		}
+	}
+, env=.startup)
+
+# Se un numero è compreso in un intervallo o meno
+assign('E',
+	function(x, inf, sup, inc=TRUE) {
+		ret <- FALSE
+		if ( inc ) {
+			if ( x >= inf & x <= sup ) ret <- TRUE
+		} else {
+			if ( x > inf & x < sup ) ret <- TRUE
+		}
+		return(ret)
+	}
+, env=.startup)
+
+
+# Converte stringhe in numeri: 201.342,32 => 201342.32
+assign('str2num ',
+	function(x) {
+		return(gsub(',', '.', gsub('\\.', '', as.character(x))))
+	}
+, env=.startup)
+
+# Download a page with RCurl and parse with htmlParse (from XML)
+assign('download',
+	function(url='', file='', verbose=TRUE, sleep.min=1, sleep.max=5) {
+		library(XML)
+		library(RCurl)
+		if ( url == '' | file == '' ) stop('AAHHH!!')
+
+		dir_out <- dirname(file)
+
+		if ( dir_out == '.' & !file.exists(dir_out) ) {
+			dir.create(dir_out, recursive=TRUE)
+		}
+
+		# Non ho trovato metodo per scrivere direttamente da XML quindi passo da RCurl
+		x <- ''
+		class(x) <- 'try-error'
+		size <- 1 # Basta che sia != 0
+		tmpfile <- paste(dir_out, 'xxx.html', sep='/')
+		while ( class(x) == 'try-error' | size == 0 ) {
+			if ( verbose ) print(paste('Downloading:', url))
+			x <- try(getURL(url, useragent='Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20100101 Firefox/17.0'), silent=TRUE)
+			if ( verbose ) print(class(x))
+			if ( class(x) != 'try-error' ) {
+				cat(x, file=tmpfile)
+				size <- file.info(tmpfile)$size
+			}
+			Sys.sleep(sample(sleep.min:sleep.max, 1))
+		}
+		cat(x, file=file)
+		# XXX cosa succede quando "Errore in htmlParse(x) : File  does not exist" ???
+		return(htmlParse(x))
+	}
+, env=.startup)
+
+
+
+###########################################################################
+assign('aggr',
+	function(obj=NA, by=NA, fun=NA) {
+		if ( missing(obj) | missing(by) | !is.function(fun) ) {
+			stop('aggr(obj=oggetto, by=categorie, fun=funzione)')
+		} else {
+			return(aggregate(obj, by=list(by), fun))
+		}
+	}
+, env=.startup)
+
+assign('by_mean',
+	function(obj=NA, by=NA, fun=mean) {
+		aggr(obj=obj, by=by, fun=fun)
+	}
+, env=.startup)
+
+assign('by_sum',
+	function(obj=NA, by=NA, fun=sum) {
+		aggr(obj=obj, by=by, fun=fun)
+	}
+, env=.startup)
+
+assign('by_count',
+	function(obj=NA, by=NA, fun=length) {
+		aggr(obj=obj, by=by, fun=fun)
+	}
+, env=.startup)
+###########################################################################
+
+assign('wd',
+	function(path=NA) {
+		if ( missing(path) ) {
+			getwd()
+		} else {
+			setwd(path)
+		}
+	}
+, env=.startup)
+
+assign('sort_mat',
+	function(mat, by=1) {
+		arg <- list(mat[,by[1]])
+		if ( length(by) >= 2 ) {
+			for ( i in 2:length(by) ) {
+				arg[[i]] <- mat[,by[i]]
+			}
+		}
+		mat <- mat[do.call('order', arg),]
+		return(mat)
+	}
+, env=.startup)
+
+assign('xy',
+	function(x=NA, y=NA, by=NA, symbol=16) {
+		if ( missing(x) | missing(y) ) {
+			stop('Series?')
+		}
+		if  ( missing(by) ) {
+			colors <- 'black'
+			#stop('by?')
+		} else {
+			if ( is.factor(by) ) {
+				colors <- topo.colors(length(levels(by)))[unlist(by)]
+			} else {
+				colors <- topo.colors(length(unique(by)))[by[order(by)]]
+			}
+		}
+		plot(x, y, pch=symbol, col=colors)
+	}
+, env=.startup)
+
+
+assign('logger',
+	function(x) {
+		cat(x)
+		flush.console()
+		cat(paste(rep('\b', nchar(x)), collapse=''))
+		#cat('\n')
+	}
+, env=.startup)
+
+assign('cuts',
+	function(x, y=NA) {
+		if ( missing(y) ) {
+			return(cut(x, breaks=quantile(x), include.lowest=TRUE))
+		} else {
+			return(cut(x, breaks=quantile(x, probs=(1:(y-1))/y), include.lowest=TRUE))
+		}
+	}
+, env=.startup)
+
+assign('hrefs',
+	function(x=NA) {
+		if ( missing(x) ) stop('URL?')
+		require(RCurl) # XXX si potrebbe fare anche senza rcurl
+		require(XML)
+		doc <- htmlParse(getURL(x))
+		a <- getNodeSet(doc, '//a')
+		return(sapply(a, xmlGetAttr, 'href'))
+	}
+, env=.startup)
+
+
+# Converti un dataframe di tipo long (con 'id' ed eventuale 'time') in wide
+assign('to_long',
+	function(dat=NA, id='id', time='time') {
+		if ( is.null(dat[[id]]) ) stop('No ID')
+		if ( is.null(dat[[time]]) ) {
+			dat[[time]] <- unlist(tapply(dat[[id]], dat[[id]], function(x) 1:length(x)))
+		}
+		return(reshape(dat, direction='wide', idvar=id, timevar=time))
+	}
+, env=.startup)
+
+assign('quant',
+	function(dat=NA, n=1, na.rm=TRUE) {
+		if ( missing(dat) ) stop('Dati?')
+		if ( n == 1 ) {
+			return(quantile(dat, na.rm=TRUE))
+		} else {
+			return(quantile(dat, na.rm=TRUE, probs=seq(0,1,by=1/n)))
+		}
+	}
+, env=.startup)
+
+assign('lib',
+	function(libs) {
+		for ( i in libs ) {
+			if ( require(i, character.only=TRUE) ) {
+				print(paste(i, 'caricato correttamente.'))
+			} else {
+				print(paste('Proviamo a installare', i))
+				install.packages(i)
+				if ( require(i, character.only=TRUE) ) {
+					print(paste(i, 'installato e caricato correttamente.'))
+				} else {
+					stop(paste('Impossibile installare', i))
+				}
+			}
+		}
+	}
+, env=.startup)
+
+assign('wb',
+	function(x, file=tempfile()) {
+		write.csv(x, file) ; browseURL(file)
+}
+, env=.startup)
+
+assign('wb2',
+	function(x, file=tempfile()) {
+		write.csv2(x, file) ; browseURL(file)
+}
+, env=.startup)
+
+############################ ALIAS ##################################
+assign('table.prop', prop.table, env=.startup)
+assign('table.marg', margin.table, env=.startup)
+
+
+#####################################################################
+# marginal.plot(iris[1:4],groups=iris[,5])
+######################################################################
+
+
+###### library/graphics/html/pairs.html
+######################################################################
+# ## put histograms on the diagonal
+#panel.hist <- function(x, ...)
+#{
+#    usr <- par("usr"); on.exit(par(usr))
+#    par(usr = c(usr[1:2], 0, 1.5) )
+#    h <- hist(x, plot = FALSE)
+#    breaks <- h$breaks; nB <- length(breaks)
+#    y <- h$counts; y <- y/max(y)
+#    rect(breaks[-nB], 0, breaks[-1], y, col="cyan", ...)
+#}
+#pairs(USJudgeRatings[1:5], panel=panel.smooth,
+#      cex = 1.5, pch = 24, bg="light blue",
+#      diag.panel=panel.hist, cex.labels = 2, font.labels=2)
+#
+### put (absolute) correlations on the upper panels,
+### with size proportional to the correlations.
+#panel.cor <- function(x, y, digits=2, prefix="", cex.cor, ...)
+#{
+#    usr <- par("usr"); on.exit(par(usr))
+#    par(usr = c(0, 1, 0, 1))
+#    r <- abs(cor(x, y))
+#    txt <- format(c(r, 0.123456789), digits=digits)[1]
+#    txt <- paste(prefix, txt, sep="")
+#    if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+#    text(0.5, 0.5, txt, cex = cex.cor * r)
+#}
+#pairs(USJudgeRatings, lower.panel=panel.smooth, upper.panel=panel.cor)
+#
+######################################################################
+
+# empirical cumulative distribution function
+# plot.ecdf()
+
+
+# library(latticeExtra)
+# ecdfplot(~iris[,1],groups=iris[,5], auto.key = list(columns = 2))
+# ecdfplot(~iris[,1]|sample(iris[,5]),groups=iris[,5], auto.key = list(columns = 2))
+
+attach(.startup)
+
