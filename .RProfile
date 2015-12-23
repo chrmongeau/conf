@@ -268,13 +268,13 @@ assign('lib',
 , env=.startup)
 
 assign('wb',
-	function(x, file=tempfile()) {
+	function(x, file=paste(tempfile(), 'csv', sep='.')) {
 		write.csv(x, file) ; browseURL(file)
 }
 , env=.startup)
 
 assign('wb2',
-	function(x, file=tempfile()) {
+	function(x, file=paste(tempfile(), 'csv', sep='.')) {
 		write.csv2(x, file) ; browseURL(file)
 }
 , env=.startup)
