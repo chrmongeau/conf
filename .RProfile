@@ -1,5 +1,4 @@
-#options('repos' = c(CRAN='http://cran.stat.unipd.it', CRANextra='http://www.stats.ox.ac.uk/pub/RWin'))
-options('repos' = c(CRAN='http://cran.rstudio.com', CRANextra='http://www.stats.ox.ac.uk/pub/RWin'))
+options('repos' = c(CRAN='https://cran.rstudio.com', CRANextra='http://www.stats.ox.ac.uk/pub/RWin'))
 
 set.seed(666)
 
