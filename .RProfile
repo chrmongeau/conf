@@ -328,12 +328,15 @@ assign('table.marg', margin.table, env=.startup)
 # ecdfplot(~iris[,1],groups=iris[,5], auto.key = list(columns = 2))
 # ecdfplot(~iris[,1]|sample(iris[,5]),groups=iris[,5], auto.key = list(columns = 2))
 
-# set a [faosws]CRAN mirror
+# Set a specific CRAN mirror when using R-SWS
 local({
-r <- getOption("repos")
-r["faoswsCRAN"] <- "http://hqlprsws1.hq.un.fao.org/fao-sws-cran/"
-options(repos = r)
+  r <- getOption("repos")
+  if (getRversion() <= "3.3.3") { # SWS
+    r["CRAN"] <- "http://hqlprsws1.hq.un.fao.org/fao-sws-cran/"
+  } else {
+    r["CRAN"] <- "https://cran.rstudio.com/"
+  }
+  options(repos = r)
 })
 
 attach(.startup)
-
