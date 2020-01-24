@@ -1,6 +1,10 @@
-options('repos' = c(CRAN='https://cran.rstudio.com', CRANextra='http://www.stats.ox.ac.uk/pub/RWin'))
+# Set a specific CRAN mirror when using R-SWS
+cran_repo <- ifelse(getRversion() <= "3.3.3", "http://hqlprsws1.hq.un.fao.org/fao-sws-cran/", "https://cran.rstudio.com/")
+options('repos' = c(CRAN = cran_repo))
 
-set.seed(666)
+Sys.setenv(R_SWS_SHARE_PATH = "R:/")
+
+set.seed(1)
 
 # http://stackoverflow.com/questions/1189759/expert-r-users-whats-in-your-rprofile#comment12948814_2139002
 .startup <- new.env()
@@ -327,16 +331,5 @@ assign('table.marg', margin.table, env=.startup)
 # library(latticeExtra)
 # ecdfplot(~iris[,1],groups=iris[,5], auto.key = list(columns = 2))
 # ecdfplot(~iris[,1]|sample(iris[,5]),groups=iris[,5], auto.key = list(columns = 2))
-
-# Set a specific CRAN mirror when using R-SWS
-local({
-  r <- getOption("repos")
-  if (getRversion() <= "3.3.3") { # SWS
-    r["CRAN"] <- "http://hqlprsws1.hq.un.fao.org/fao-sws-cran/"
-  } else {
-    r["CRAN"] <- "https://cran.rstudio.com/"
-  }
-  options(repos = r)
-})
 
 attach(.startup)
