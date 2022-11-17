@@ -15,6 +15,11 @@ assign('grepi',
 	}
 , env=.startup)
 
+# grep senza differenza maiuscole/minuscole
+assign('rotate_x_text',
+	function() ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 0))
+, env=.startup)
+
 # Tipo 'fre' di SPSS. Bisogna avere installato il pacchetto 'xtable'
 assign('fre',
 	function(x, html=FALSE, digits=1, total=TRUE) {
