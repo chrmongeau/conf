@@ -177,21 +177,30 @@ LooksLikeWindowsPath(s)
   return RegExMatch(s, '^"?([A-Za-z]:\\|\\\\[^\\])') > 0
 }
 
-#HotIf WinActive("ahk_exe rstudio.exe") || WinActive("ahk_exe Rgui.exe")
-^v::
+; Paste, converting a Windows path on the way through. Reached from Ctrl+V,
+; Shift+Insert and the F10 paste keys, so it works whichever one you reach for.
+RPaste()
 {
-  if !LooksLikeWindowsPath(A_Clipboard)
+  if LooksLikeWindowsPath(A_Clipboard)
   {
-    Send "^v"  ; not a path, stay out of the way
-    return
+    ; Deliberately no save/restore of the original clipboard. RStudio reads
+    ; the clipboard asynchronously, so putting the backslash version back
+    ; after the paste races that read and you get the unconverted path.
+    ; Leaving the converted path on the clipboard is harmless, and usually
+    ; what you want anyway.
+    A_Clipboard := StrReplace(A_Clipboard, "\", "/")
+    ClipWait(1, 0)
+    ToolTip("path pasted with /")  ; also confirms the hotkey fired at all
+    SetTimer(() => ToolTip(), -700)
   }
-  saved := ClipboardAll()
-  A_Clipboard := StrReplace(A_Clipboard, "\", "/")
-  ClipWait(1, 0)
-  Send "^v"
-  Sleep 300
-  A_Clipboard := saved
+  Send "^v"  ; non-blind Send, so a physically held Shift is released first
 }
+
+IsRWindow() => WinActive("ahk_exe rstudio.exe") || WinActive("ahk_exe Rgui.exe")
+
+#HotIf IsRWindow()
+^v::RPaste()
++Insert::RPaste()
 #HotIf
 
 ; ##### /R }}}
@@ -219,8 +228,7 @@ Unwrap(t)
   return Trim(StrReplace(t, "`r", "`n`n"))          ; and put the breaks back
 }
 
-#HotIf IsPdfWindow()
-^c::
+PdfCopy()
 {
   saved := A_Clipboard
   A_Clipboard := ""
@@ -232,20 +240,61 @@ Unwrap(t)
   }
   A_Clipboard := Unwrap(A_Clipboard)
 }
+
+#HotIf IsPdfWindow()
+^c::PdfCopy()
+^Insert::PdfCopy()
 #HotIf
 
 ; ##### /PDF }}}
 
 
-; ##### MACHINE-SPECIFIC
+; ##### KEYBOARD
 ; {{{
 
-; Zbook: terminal-style copy/paste on F10
-#HotIf A_ComputerName = "LT210964"
-^F10::SendInput "^{Insert}"
-+F10::SendInput "+{Insert}"
-#HotIf
+; The F10 pair stands in for the Insert copy/paste pair. This was originally
+; written as "if A_ComputerName == <the Zbook>", which never actually scoped
+; anything -- hotkeys register at load time, so it was live on every machine,
+; and by now it is relied on everywhere. Left global on purpose; put it back
+; behind #HotIf A_ComputerName = ... if you ever really want it on one box.
+;
+; These call the R/PDF handlers directly rather than synthesising an Insert
+; keystroke and hoping it re-triggers this script's own +Insert / ^Insert
+; hotkeys: AHK ignores its own synthetic input, and the SendLevel dance needed
+; to work around that is more fragile than just dispatching here.
+;
+; {Blind} is load-bearing. You are physically holding Ctrl (or Shift) when the
+; hotkey fires; a plain Send would release and re-press it around the Insert,
+; and that modifier churn is dropped by terminals and browsers. Blind mode
+; leaves your physical modifier alone and sends the bare Insert, so the app
+; sees a clean Ctrl+Insert / Shift+Insert.
+^F10::
+{
+  if IsPdfWindow()
+    PdfCopy()
+  else
+    SendInput "{Blind}{Insert}"
+}
 
-; ##### /MACHINE-SPECIFIC }}}
++F10::
+{
+  if IsRWindow()
+    RPaste()
+  else
+    SendInput "{Blind}{Insert}"  ; Shift stays held -> Shift+Insert
+}
+
+; Same paste with Ctrl held as well -- an easy slip when Ctrl+F10 is copy, and
+; apparently the habit. Release the Ctrl so the app still sees Shift+Insert
+; rather than Ctrl+Shift+Insert, which means nothing to most apps.
+^+F10::
+{
+  if IsRWindow()
+    RPaste()
+  else
+    SendInput "{Blind}{Ctrl up}{Insert}"
+}
+
+; ##### /KEYBOARD }}}
 
 ; vi: set foldmethod=marker:

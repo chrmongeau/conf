@@ -24,6 +24,8 @@ piece has to be linked or copied into place on a new machine, see below.
 | `Win+Shift+N` | New scratch note |
 | `Win+Shift+T` | Summon the scratch window, or minimize it |
 | `Shift+Alt+Arrows` | PgUp / PgDn / Home / End |
+| `Ctrl+F10` | Copy (sends `Ctrl+Insert`) |
+| `Shift+F10` / `Ctrl+Shift+F10` | Paste (sends `Shift+Insert`) |
 | `Ctrl+Shift+V` | Paste as plain text |
 | `Ctrl+Alt+B` | Sign-off snippet |
 
@@ -36,10 +38,18 @@ Three hotkeys only act in a particular context:
 - **`Ctrl+C` in a PDF** (Adobe Reader, or any window whose title contains
   `.pdf`) rejoins the hard-wrapped lines, keeps paragraph breaks, and repairs
   words hyphenated across a line break.
-- **`Ctrl+F10` / `Shift+F10`** map to `Ctrl+Insert` / `Shift+Insert`, on the
-  Zbook only. Machine-specific bindings are scoped with `#HotIf
-  A_ComputerName = ...` — a plain `if` will not work, because hotkeys are
-  registered at load time and would end up active everywhere.
+The F10 copy/paste pair has two details worth not re-breaking:
+
+- They send `{Blind}{Insert}`, not `^{Insert}`. You are physically holding the
+  modifier when the hotkey fires, and a plain `Send` releases and re-presses it
+  around the Insert — terminals and browsers drop that. Blind mode leaves your
+  modifier alone and injects the bare `Insert`.
+- They are **global on purpose**. This was originally written as `if
+  (A_ComputerName == <the Zbook>)`, which never scoped anything: hotkeys
+  register at load time, so the `if` had no effect and the remaps were live on
+  every machine. Scoping it "correctly" removes copy/paste from every other
+  machine. If you ever do want it scoped, `#HotIf A_ComputerName = ...` is the
+  form that works.
 
 ### Scratch notes
 
