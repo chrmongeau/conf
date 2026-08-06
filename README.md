@@ -92,40 +92,68 @@ The notes directory is set by `NotesDir()` at the top of the section.
 
 ### Meeting alerts
 
-A Power Automate flow posts a *"🚨 Meeting starting soon!"* card into Teams.
-The Teams banner is small and easy to miss, so the script escalates it into a
-large red always-on-top popup with a beep.
+A Power Automate flow announces meetings that are about to start. Teams' own
+banner is easy to miss, so the flow also drops a file into OneDrive and the
+script turns that into a large red always-on-top popup with a beep.
 
-It is in two pieces because reading *another* application's notifications means
-`Windows.UI.Notifications.Management.UserNotificationListener`, which is WinRT
-and out of AutoHotkey's reach:
+**The flow must write one file per alert** into `%OneDriveCommercial%\AHK\alerts`
+— a *new* file each time, not one file rewritten, since OneDrive's "create file"
+is far more predictable than an update and two meetings starting close together
+then cannot overwrite each other:
 
-- `AutoHotkey/teams-meeting-watch.ps1` polls the notification store every 4s,
-  and appends a line to `%TEMP%\ahk-meeting-alert.txt` when a Teams toast
-  matches. `autostart.ahk` starts it hidden at load and kills it on exit.
-- The AHK side polls that file by byte offset every 2s and raises the popup.
-  Offsets rather than read-and-delete, so there is no race with the writer.
+| | |
+| --- | --- |
+| Folder | `AHK/alerts` in OneDrive |
+| Name | anything sortable, e.g. `meeting-20260806-2115.txt` |
+| Content | `subject \| HH:mm \| location \| webLink \| joinLink` |
 
-Matching is on the words `Meeting starting soon`, never the 🚨 emoji: Windows
-PowerShell 5.1 reads a BOM-less script as ANSI, so an emoji literal in the
-`.ps1` would arrive mangled and match nothing. For the same reason the `.ps1`
-is deliberately ASCII-only.
+Fields are split on content, not position: any field that looks like a URL
+becomes a **button**, everything else is display text. So the links can be
+appended in either order, an empty field costs nothing, and a meeting with no
+online-meeting link just yields one fewer button. Buttons are named from the
+URL — `teams.microsoft.com` → *Join Online Meeting*, an Outlook or OWA host →
+*Open in Outlook*, anything else → *Open link*.
 
-**The sender check is off by default.** `-RequireSender` additionally demands
-the word `Workflows` in the toast body. It ships off because if the real card
-does not carry that word, requiring it would silently suppress every alert —
-a broken-looking feature instead of a merely imprecise one. Turn it on once
-the capture log confirms the wording.
+**Only `http`/`https` links get a button.** That is what keeps *Open in Outlook*
+opening Outlook **on the web**: a desktop-handler URL such as `ms-outlook://`
+fails the test and is ignored rather than launching a desktop client that isn't
+used here. Clicking a button opens the link in the default browser and
+dismisses the popup.
 
-`%TEMP%\ahk-meeting-capture.log` records **every** Teams toast, matched or not,
-and rolls over at 512 KB. That log is how you find out what the real card looks
-like — and whether Teams routes it through Windows at all. Teams can be set to
-draw its own notifications instead (Settings → Notifications → notification
-style), in which case nothing reaches the notification store and the log stays
-empty of meeting cards. If that happens, switch Teams to the Windows style.
+A link is also cut back to the first character a URL cannot contain. The join
+link has no field of its own on the calendar trigger — it exists only inside the
+invitation's HTML body, so the flow has to slice it out with string functions,
+and that goes wrong easily. Trimming a stray `</p>` or quote here means a
+slightly sloppy extraction still yields a working button. On the flow side,
+slice on the full join prefix `https://teams.microsoft.com/meet/` — **not** on
+the host. An invitation body carries several `teams.microsoft.com` URLs (the
+Teams download link, "Meeting options", "Reset dial-in PIN"), and the join link
+is rarely the first, so slicing on the host alone picks the wrong one. The
+trailing slash matters too, or `/meet` also matches `meetingOptions`.
 
-Tuning without editing the AHK: run the `.ps1` by hand with `-Phrase`,
-`-Sender`, `-RequireSender`, `-IntervalSec`.
+The script scans that folder every **5 minutes** (`MeetingScanMs()`). Note that
+this interval comes off the warning time: a file landing just after a scan waits
+a full interval, so the notice actually given is the flow's look-ahead **minus**
+the scan interval **minus** OneDrive's sync latency. Five minutes is comfortable
+against a 15-minute look-ahead; if the flow is ever changed to trigger closer to
+the meeting, this has to come down with it. Files present at startup are
+recorded as already-seen, so a reload never replays the last meeting. If
+several appear at once the newest by filename wins, which is why the name
+should sort chronologically. A file that cannot be read yet — OneDrive delivers
+the placeholder before the contents — is left unseen and retried on the next
+pass.
+
+`Win+Shift+M` shows the popup without waiting for a meeting.
+
+**This deliberately does not go through Teams or Windows notifications.** An
+earlier version read the Windows notification store to catch the Teams card
+directly; on this machine that could never work, because this build of Teams
+renders its own banners and never publishes to Windows — confirmed with
+do-not-disturb both on and off, and visible in Teams' settings as the
+position/size controls that only a self-drawn notification can offer. That
+version is in the history at commit `463fb0d`. Watching a file instead needs no
+helper process at all, and cannot be broken by a Teams setting, a notification
+style, or do-not-disturb.
 
 ### Requirements
 
@@ -136,8 +164,7 @@ Paths are hardcoded where the executable is not resolvable by name:
 | AutoHotkey **v2** | `AppData\Local\Programs\AutoHotkey\v2\AutoHotkey64.exe` |
 | gvim, built `+clientserver` | Not on `PATH` and no App Paths entry, so the full path is spelled out. `+clientserver` is what makes the scratch tabs work |
 | Brave, Excel, Word, PowerPoint | Resolved by name through the App Paths registry key |
-| Windows PowerShell 5.1 (`powershell.exe`) | Runs the meeting watcher. Not PowerShell 7 — the WinRT interop it relies on is 5.1-only |
-| Notification access | Settings → Privacy & security → Notifications. Without it the watcher logs the refusal and exits |
+| OneDrive, syncing | Delivers the meeting alert files. The folder is resolved from `%OneDriveCommercial%`, falling back to `%OneDrive%`, so the tenant name is not hardcoded |
 
 PowerPoint is launched as `powerpnt`, not `powerpoint` — App Paths has no
 entry under the longer name.

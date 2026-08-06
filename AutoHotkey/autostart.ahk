@@ -20,18 +20,7 @@ ActivateWindow(hwnd)
 
 ; --- auto-execute: runs once at load, and must stay above the first hotkey ---
 
-MeetingAlertPos := 0  ; byte offset in the trigger file already handled
-StartMeetingWatcher()
-OnExit(MeetingWatcherExit)
-
-MeetingWatcherExit(reason, code)
-{
-  ; On a reload -- or when a second instance forces this one out -- the
-  ; incoming instance kills the old watcher itself. Killing it here as well
-  ; would race that and take down the *new* watcher instead of the old one.
-  if (reason != "Reload" && reason != "Single")
-    KillMeetingWatcher()
-}
+StartMeetingWatch()
 
 
 ; ##### SCRIPT HYGIENE
@@ -114,80 +103,141 @@ ActivateOrRun(exe, cmd, exclude := "")
 ; ##### MEETING ALERT
 ; {{{
 
-; A Power Automate flow posts a "Meeting starting soon" card into Teams. The
-; Teams banner is small, silent and easy to miss with a full screen of windows,
-; so a watcher turns that card into something you cannot miss.
+; A Power Automate flow drops a small file into OneDrive when a meeting is about
+; to start. OneDrive syncs it down, this notices it and raises a popup you
+; cannot miss.
 ;
-; Split in two on purpose. Reading *another* app's notifications needs
-; Windows.UI.Notifications.Management.UserNotificationListener, which is WinRT
-; and out of AHK's reach -- so teams-meeting-watch.ps1 does the reading and
-; appends a line per hit, and this side only has to watch a small text file.
-MeetingWatcher() => A_ScriptDir "\teams-meeting-watch.ps1"
-TriggerFile()    => A_Temp "\ahk-meeting-alert.txt"
-WatcherPidFile() => A_Temp "\ahk-meeting-watch.pid"
+; This replaced a version that read Windows' notification store to catch the
+; Teams card, which could never work on this machine: this build of Teams draws
+; its own banners and never publishes to Windows, so nothing ever reached the
+; store to be read. Confirmed twice, with do-not-disturb both on and off. It is
+; in the history at commit 463fb0d if the situation ever changes.
+;
+; Watching a file has the happy side effect of needing no helper process at all:
+; no PowerShell, no pid file, nothing to babysit or orphan. It also cannot be
+; broken by a Teams setting, a notification style or do-not-disturb, none of
+; which it depends on.
 
-KillMeetingWatcher()
+; Resolved at runtime, not hardcoded: the folder name carries the tenant, so it
+; differs between this machine and any personal account.
+AlertDir()
 {
-  if !FileExist(WatcherPidFile())
-    return
-  pid := Trim(FileRead(WatcherPidFile()), " `t`r`n")
-  ; Confirm it really is our PowerShell before killing anything. PIDs are
-  ; recycled, and a stale pid file that happens to name someone else's process
-  ; would otherwise make this script kill a stranger.
-  try
-  {
-    if (pid is Integer) && InStr(ProcessGetName(Integer(pid)), "powershell")
-      ProcessClose(Integer(pid))
-  }
-  FileDelete(WatcherPidFile())
+  static dir := ""
+  if dir != ""
+    return dir
+  root := EnvGet("OneDriveCommercial")
+  if root = ""
+    root := EnvGet("OneDrive")
+  return dir := root "\AHK\alerts"
 }
 
-StartMeetingWatcher()
+; One file per alert, named uniquely by the flow, rather than one file rewritten
+; each time. OneDrive's "create file" is far more predictable than an update,
+; and two meetings starting close together then cannot overwrite one another.
+;
+; Five minutes. The scan is cheap at any interval -- Loop Files reads directory
+; entries and never touches file contents, so it does not hydrate OneDrive
+; placeholders -- but there is no point paying it thousands of times a day for a
+; handful of meetings, and OneDrive's own sync latency already sets the floor on
+; how quickly a new file can be noticed.
+;
+; The one thing to keep in mind: this interval comes straight off the warning
+; time. A file landing just after a scan waits a full interval, so the notice
+; actually given is the flow's look-ahead, minus this, minus the sync. Five
+; minutes is comfortable against a 15 minute look-ahead. If the flow is ever
+; retriggered closer to the meeting, this has to come down with it or the popup
+; arrives as the meeting starts.
+MeetingScanMs() => 300000
+
+StartMeetingWatch()
 {
-  global MeetingAlertPos
-  KillMeetingWatcher()  ; a reload must not leave the previous one running
-
-  ; Resume at the end of the existing trigger file: anything already in it fired
-  ; in a previous session and is stale by definition.
-  MeetingAlertPos := FileExist(TriggerFile()) ? FileGetSize(TriggerFile()) : 0
-
-  Run(Format('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{1}"',
-             MeetingWatcher()), , "Hide")
-  SetTimer(CheckMeetingAlert, 2000)
+  global MeetingSeen := Map()
+  ; Anything sitting in the folder at startup already happened. Record it so a
+  ; reload does not replay the last meeting as a fresh alert.
+  Loop Files AlertDir() "\*.txt"
+    MeetingSeen[A_LoopFileName] := true
+  SetTimer(CheckMeetingAlert, MeetingScanMs())
 }
 
-; Poll by byte offset rather than re-reading the file: the watcher only ever
-; appends, so everything past the last offset is new and nothing has to be
-; deleted -- which keeps this free of the read/delete race a truncating design
-; would have.
 CheckMeetingAlert()
 {
-  global MeetingAlertPos
-  if !FileExist(TriggerFile())
-    return
-  size := FileGetSize(TriggerFile())
-  if (size = MeetingAlertPos)
-    return
-  if (size < MeetingAlertPos)  ; file was replaced or truncated -- start over
-    MeetingAlertPos := 0
-  if !(f := FileOpen(TriggerFile(), "r", "UTF-8"))
-    return
-  f.Pos := MeetingAlertPos
-  fresh := f.Read()
-  MeetingAlertPos := f.Pos
-  f.Close()
-  ; PowerShell writes UTF-8 with a BOM. AHK drops it on a plain sequential
-  ; open, but not after an explicit seek -- so without this the first alert
-  ; read from offset 0 arrives with a stray U+FEFF stuck to the front.
-  fresh := LTrim(fresh, Chr(0xFEFF))
+  global MeetingSeen
+  newest := "", newestText := ""
+  Loop Files AlertDir() "\*.txt"
+  {
+    if MeetingSeen.Has(A_LoopFileName)
+      continue
+    MeetingSeen[A_LoopFileName] := true
+    ; A file can exist as a OneDrive placeholder a moment before its contents
+    ; are down, and reading one mid-sync throws. Skipping is safe: it stays
+    ; unseen and the next pass five seconds later picks it up.
+    try text := Trim(LTrim(FileRead(A_LoopFilePath, "UTF-8"), Chr(0xFEFF)), " `t`r`n")
+    catch
+    {
+      MeetingSeen.Delete(A_LoopFileName)
+      continue
+    }
+    ; StrCompare, not ">". In v2 the relational operators are numeric only and
+    ; throw a TypeError on a filename -- and /validate cannot catch that,
+    ; because it only surfaces once a file is actually sitting in the folder.
+    if StrCompare(A_LoopFileName, newest) > 0  ; names are stamps: latest wins
+    {
+      newest := A_LoopFileName
+      newestText := text
+    }
+  }
+  ; If several landed in one interval, the latest meeting is the one to show.
+  if newest != ""
+    ShowMeetingAlert(newestText)
+}
 
-  ; If several arrived inside one interval, the newest is the one that matters.
-  latest := ""
-  for line in StrSplit(fresh, "`n", "`r")
-    if Trim(line) != ""
-      latest := Trim(line)
-  if latest != ""
-    ShowMeetingAlert(latest)
+; The flow writes "subject | HH:mm | location | webLink | joinLink". Split on
+; content rather than position: anything that looks like a URL becomes a button,
+; everything else is display text. That way the flow can append the links in
+; either order, an empty field costs nothing, and a meeting with no join link
+; simply produces one fewer button.
+ParseAlert(line)
+{
+  info := {text: "", links: []}
+  for part in StrSplit(line, "|")
+  {
+    if (part := Trim(part)) = ""
+      continue
+    ; http(s) only, deliberately. It is also the guard that keeps "Open in
+    ; Outlook" opening Outlook on the web: a desktop-handler link such as
+    ; outlook:// or ms-outlook:// fails this test and is ignored rather than
+    ; launching a desktop client that isn't used here.
+    ;
+    ; Capturing up to the first character a URL cannot contain, rather than
+    ; taking the whole field, is deliberate too. The Teams join link has to be
+    ; cut out of the invitation's HTML body by the flow, and that kind of string
+    ; surgery goes wrong easily -- a stray `</p>` or quote on the end would
+    ; otherwise produce a button that leads nowhere.
+    if RegExMatch(part, "i)^https?://[^\s`"'<>]+", &m)
+      info.links.Push(m[0])
+    else
+      info.text .= (info.text = "" ? "" : "     ") part
+  }
+  if info.text = ""
+    info.text := "Meeting starting soon"
+  return info
+}
+
+; Name a button after where it points. Teams and Outlook are what the flow
+; sends; anything else still gets a button, just a generic one.
+LinkLabel(url)
+{
+  if InStr(url, "teams.microsoft.com")
+    return "Join Online Meeting"
+  if RegExMatch(url, "i)outlook\.(office|office365|live)\.com|/owa/")
+    return "Open in Outlook"
+  return "Open link"
+}
+
+OpenAndClose(url, g, *)
+{
+  try Run(url)       ; hands off to the default browser
+  CloseAlert(g)
 }
 
 CloseAlert(g)
@@ -195,22 +245,40 @@ CloseAlert(g)
   try g.Destroy()
 }
 
-ShowMeetingAlert(text)
+ShowMeetingAlert(line)
 {
   static current := ""
   if IsObject(current)
     CloseAlert(current)
 
+  info := ParseAlert(line)
+  W := 560, MX := 26, GAP := 10
+
   g := Gui("+AlwaysOnTop -MinimizeBox -MaximizeBox +ToolWindow", "Meeting starting soon")
   g.BackColor := "A80000"
-  g.MarginX := 26, g.MarginY := 22
+  g.MarginX := MX, g.MarginY := 22
   g.SetFont("s22 bold cWhite", "Segoe UI")
-  g.Add("Text", "w560 Center", "MEETING STARTING SOON")
+  g.Add("Text", "w" W " Center", "MEETING STARTING SOON")
   g.SetFont("s11 norm cWhite")
-  g.Add("Text", "w560 Center", text)
+  g.Add("Text", "w" W " Center", info.text)
   g.SetFont("s10 norm")
-  btn := g.Add("Button", "w150 h36 xm+230 y+20", "Dismiss")
-  btn.OnEvent("Click", (*) => CloseAlert(g))
+
+  ; One button per link, plus Dismiss, as a centred row. AHK positions controls
+  ; one at a time and has no way to centre a group, so the start x and the width
+  ; are arithmetic on however many buttons this particular meeting produced --
+  ; which is why the width shrinks rather than overflowing when there are three.
+  n  := info.links.Length + 1
+  bw := Min(180, (W - (n - 1) * GAP) / n)
+  x  := MX + (W - (n * bw + (n - 1) * GAP)) / 2
+  row := "y+20"
+  for url in info.links
+  {
+    b := g.Add("Button", Format("w{1} h36 x{2} {3}", Round(bw), Round(x), row), LinkLabel(url))
+    b.OnEvent("Click", OpenAndClose.Bind(url, g))
+    x += bw + GAP, row := "yp"   ; yp: keep the rest on the same line
+  }
+  d := g.Add("Button", Format("w{1} h36 x{2} {3}", Round(bw), Round(x), row), "Dismiss")
+  d.OnEvent("Click", (*) => CloseAlert(g))
   g.OnEvent("Escape", (*) => CloseAlert(g))
   g.OnEvent("Close",  (*) => CloseAlert(g))
 
@@ -224,8 +292,10 @@ ShowMeetingAlert(text)
   SetTimer(() => CloseAlert(g), -300000)  ; give up after 5 min if you are away
 }
 
-; See the popup without waiting for a real meeting
-#+m::ShowMeetingAlert("Test alert -- Workflows: Meeting starting soon!")
+; See the popup without waiting for a real meeting, buttons and all
+#+m::ShowMeetingAlert("Test alert | 14:30 | Room B"
+                    . " | https://outlook.office.com/calendar/item/test"
+                    . " | https://teams.microsoft.com/l/meetup-join/test")
 
 ; ##### /MEETING ALERT }}}
 
