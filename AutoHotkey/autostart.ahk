@@ -9,6 +9,15 @@
 
 GVIM() => "C:\Program Files\Vim\vim91\gvim.exe"  ; not on PATH, so spell it out
 
+; Activate a window, restoring it first if it was minimized. Shared by the
+; launchers, the app-window cycler and the scratch note keys.
+ActivateWindow(hwnd)
+{
+  if WinGetMinMax(hwnd) = -1
+    WinRestore hwnd
+  WinActivate hwnd
+}
+
 
 ; ##### SCRIPT HYGIENE
 ; {{{
@@ -42,11 +51,27 @@ GVIM() => "C:\Program Files\Vim\vim91\gvim.exe"  ; not on PATH, so spell it out
 ; ##### LAUNCHERS
 ; {{{
 
-#+c::Run "calc"
-#+e::Run "excel"
-#+w::Run "winword"
-#+p::Run "powerpnt"  ; not "powerpoint" -- App Paths registers it as powerpnt.exe
-#+v::Run Format('"{1}"', GVIM())
+; Focus the app if it is already up, rather than starting a second copy: Excel,
+; Word and gvim all launch again quite happily, which from a launcher key is
+; never what you meant. "exclude" is a title fragment to ignore, so the gvim key
+; does not hand you the scratch window instead of a new editor.
+ActivateOrRun(exe, cmd, exclude := "")
+{
+  SetTitleMatchMode 2  ; exclude is a fragment, not a whole title
+  if hwnd := WinExist("ahk_exe " exe, , exclude)
+  {
+    ActivateWindow(hwnd)
+    return
+  }
+  Run cmd
+}
+
+#+c::Run "calc"  ; UWP and single-instance already: a second Run just focuses it
+#+e::ActivateOrRun("EXCEL.EXE", "excel")
+#+w::ActivateOrRun("WINWORD.EXE", "winword")
+; not "powerpoint" -- App Paths registers it as powerpnt.exe
+#+p::ActivateOrRun("POWERPNT.EXE", "powerpnt")
+#+v::ActivateOrRun("gvim.exe", Format('"{1}"', GVIM()), ScratchTag())
 ;#+x::Run "D:/x"  ; temp dir
 
 ; Brave with a fresh tab, cursor already in the address bar
@@ -71,6 +96,43 @@ GVIM() => "C:\Program Files\Vim\vim91\gvim.exe"  ; not on PATH, so spell it out
 ; ##### /LAUNCHERS }}}
 
 
+; ##### WINDOWS
+; {{{
+
+; Windows has no per-app switcher -- Alt+Tab and Alt+Esc both walk every window
+; on the desktop. This is the macOS Cmd+`: rotate through the windows of
+; whatever app is in front (two Word documents, three Brave windows) and leave
+; everything else where it is.
+CycleAppWindows()
+{
+  if !(active := WinExist("A"))
+    return
+  wins := []
+  for hwnd in WinGetList("ahk_exe " WinGetProcessName(active))
+  {
+    ; Most apps keep invisible helpers around -- shell hosts, IME and message
+    ; windows. They carry no title and you cannot switch to them, so drop them
+    ; or the cycle "moves" to nothing every other press.
+    if WinGetTitle(hwnd) != ""
+      wins.Push(hwnd)
+  }
+  if wins.Length < 2
+    return
+  ; WinGetList hands back the z-order, front to back. Activating the *bottom*
+  ; entry rotates the stack by one, so repeated presses walk the whole app and
+  ; come back around. With two windows it is a plain toggle.
+  ActivateWindow(wins[wins.Length])
+}
+
+; Alt + the key above Tab, i.e. Cmd+` in the same place your hand already goes.
+; Bound by scancode rather than as !` because that key is only a backtick on a
+; US layout -- on an Italian one it is \ , and the hotkey would silently fail
+; to register. SC029 is the physical key, whatever it happens to print.
+!SC029::CycleAppWindows()
+
+; ##### /WINDOWS }}}
+
+
 ; ##### SCRATCH NOTES
 ; {{{
 
@@ -78,7 +140,10 @@ GVIM() => "C:\Program Files\Vim\vim91\gvim.exe"  ; not on PATH, so spell it out
 ; instead of a new window per thought. Notes are real dated files, so nothing
 ; is lost on reboot and you can grep the folder months later.
 NotesDir()   => EnvGet("USERPROFILE") "\notes"  ; C:\Users\Mongeau\notes
-ScratchWin() => "[SCRATCH] ahk_exe gvim.exe"
+; The tag gvim puts in the title. Also what the #+v launcher excludes, so that
+; "open gvim" and "summon the scratch window" stay two different keys.
+ScratchTag() => "[SCRATCH]"
+ScratchWin() => ScratchTag() " ahk_exe gvim.exe"
 
 ; Same minute => same file, so a double press reopens rather than clutters.
 NewScratchNote()
@@ -92,20 +157,13 @@ NewScratchNote()
   Run Format('"{1}" --servername SCRATCH -c "set titlestring=[SCRATCH]-%t" --remote-tab-silent "{2}"', GVIM(), file)
 }
 
-ShowScratch(hwnd)
-{
-  if WinGetMinMax(hwnd) = -1
-    WinRestore hwnd
-  WinActivate hwnd
-}
-
 ; New note -- starts the scratch window if it isn't up yet
 #+n::
 {
   SetTitleMatchMode 2
   NewScratchNote()
   if hwnd := WinWait(ScratchWin(), , 5)
-    ShowScratch(hwnd)
+    ActivateWindow(hwnd)
 }
 
 ; Summon it / get it out of the way
@@ -116,13 +174,13 @@ ShowScratch(hwnd)
   {
     NewScratchNote()  ; nothing running yet -- open with a fresh note
     if hwnd := WinWait(ScratchWin(), , 5)
-      ShowScratch(hwnd)
+      ActivateWindow(hwnd)
     return
   }
   if WinActive(hwnd)
     WinMinimize hwnd  ; minimize, not WinHide: a hidden window is unrecoverable
   else                ; by normal means if this script ever dies
-    ShowScratch(hwnd)
+    ActivateWindow(hwnd)
 }
 
 ; ##### /SCRATCH NOTES }}}
@@ -160,15 +218,12 @@ ShowScratch(hwnd)
 ; Bye!
 ^!b::Send "Best,{Enter}{Enter}Christian"
 
-; ##### /EDITING }}}
+; Today's date, for note headers, file names and YAML front matter
+^!d::SendText FormatTime(, "yyyy-MM-dd")
 
-
-; ##### R / RSTUDIO
-; {{{
-
-; Windows hands out paths with backslashes, R wants forward slashes. Rewrite
-; them on paste -- but ONLY when the clipboard really is a single-line path.
-; Anything else would corrupt pasted code: regexes, "\n", LaTeX, escapes.
+; Windows hands out paths with backslashes; R, gvim and every shell want
+; forward slashes. Rewrite the clipboard in place, so the converted path is
+; ready wherever you paste it next.
 LooksLikeWindowsPath(s)
 {
   if (s == "" || InStr(s, "`n") || InStr(s, "`r"))
@@ -177,76 +232,30 @@ LooksLikeWindowsPath(s)
   return RegExMatch(s, '^"?([A-Za-z]:\\|\\\\[^\\])') > 0
 }
 
-; Paste, converting a Windows path on the way through. Reached from Ctrl+V,
-; Shift+Insert and the F10 paste keys, so it works whichever one you reach for.
-RPaste()
+; Ctrl+Alt+P, next to the other Ctrl+Alt inserters. A letter rather than the
+; "/" key on purpose: symbol keys sit in different places on different layouts.
+^!p::
 {
-  if LooksLikeWindowsPath(A_Clipboard)
+  path := Trim(A_Clipboard)  ; some sources tack on a trailing newline
+  ; The guard is deliberate even though you asked for this explicitly: fired by
+  ; accident on a regex, a "\n" or a LaTeX snippet, a blind replace would
+  ; quietly corrupt the clipboard. Anything that is not clearly a path is left
+  ; exactly as it was.
+  if !LooksLikeWindowsPath(path)
   {
-    ; Deliberately no save/restore of the original clipboard. RStudio reads
-    ; the clipboard asynchronously, so putting the backslash version back
-    ; after the paste races that read and you get the unconverted path.
-    ; Leaving the converted path on the clipboard is harmless, and usually
-    ; what you want anyway.
-    A_Clipboard := StrReplace(A_Clipboard, "\", "/")
-    ClipWait(1, 0)
-    ToolTip("path pasted with /")  ; also confirms the hotkey fired at all
-    SetTimer(() => ToolTip(), -700)
-  }
-  Send "^v"  ; non-blind Send, so a physically held Shift is released first
-}
-
-IsRWindow() => WinActive("ahk_exe rstudio.exe") || WinActive("ahk_exe Rgui.exe")
-
-#HotIf IsRWindow()
-^v::RPaste()
-+Insert::RPaste()
-#HotIf
-
-; ##### /R }}}
-
-
-; ##### PDF
-; {{{
-
-; Text copied out of a PDF arrives hard-wrapped at every line. Rejoin it, but
-; keep real paragraph breaks and repair words hyphenated across a line break.
-IsPdfWindow()
-{
-  if WinActive("ahk_exe AcroRd32.exe") || WinActive("ahk_exe Acrobat.exe")
-    return true
-  try return InStr(WinGetTitle("A"), ".pdf") > 0  ; in-browser PDF viewers
-  return false
-}
-
-Unwrap(t)
-{
-  t := StrReplace(t, "`r`n", "`n")
-  t := RegExReplace(t, "\n[ \t]*\n[ \t\n]*", "`r")  ; park paragraph breaks on CR
-  t := RegExReplace(t, "(\w)-\n(\w)", "$1$2")       ; de-hyphenate split words
-  t := RegExReplace(t, "[ \t]*\n[ \t]*", " ")       ; join the wrapped lines
-  return Trim(StrReplace(t, "`r", "`n`n"))          ; and put the breaks back
-}
-
-PdfCopy()
-{
-  saved := A_Clipboard
-  A_Clipboard := ""
-  Send "^c"
-  if !ClipWait(1)
-  {
-    A_Clipboard := saved  ; nothing was selected
+    ToolTip("clipboard is not a Windows path")
+    SetTimer(() => ToolTip(), -1200)
     return
   }
-  A_Clipboard := Unwrap(A_Clipboard)
+  ; Any quotes Explorer's "Copy as path" added are kept: pasted into R or a
+  ; shell, a quoted path is exactly what you want.
+  A_Clipboard := StrReplace(path, "\", "/")
+  ClipWait(1, 0)
+  ToolTip("path converted to /")
+  SetTimer(() => ToolTip(), -700)
 }
 
-#HotIf IsPdfWindow()
-^c::PdfCopy()
-^Insert::PdfCopy()
-#HotIf
-
-; ##### /PDF }}}
+; ##### /EDITING }}}
 
 
 ; ##### KEYBOARD
@@ -258,42 +267,18 @@ PdfCopy()
 ; and by now it is relied on everywhere. Left global on purpose; put it back
 ; behind #HotIf A_ComputerName = ... if you ever really want it on one box.
 ;
-; These call the R/PDF handlers directly rather than synthesising an Insert
-; keystroke and hoping it re-triggers this script's own +Insert / ^Insert
-; hotkeys: AHK ignores its own synthetic input, and the SendLevel dance needed
-; to work around that is more fragile than just dispatching here.
-;
 ; {Blind} is load-bearing. You are physically holding Ctrl (or Shift) when the
 ; hotkey fires; a plain Send would release and re-press it around the Insert,
 ; and that modifier churn is dropped by terminals and browsers. Blind mode
 ; leaves your physical modifier alone and sends the bare Insert, so the app
 ; sees a clean Ctrl+Insert / Shift+Insert.
-^F10::
-{
-  if IsPdfWindow()
-    PdfCopy()
-  else
-    SendInput "{Blind}{Insert}"
-}
-
-+F10::
-{
-  if IsRWindow()
-    RPaste()
-  else
-    SendInput "{Blind}{Insert}"  ; Shift stays held -> Shift+Insert
-}
+^F10::SendInput "{Blind}{Insert}"
++F10::SendInput "{Blind}{Insert}"  ; Shift stays held -> Shift+Insert
 
 ; Same paste with Ctrl held as well -- an easy slip when Ctrl+F10 is copy, and
 ; apparently the habit. Release the Ctrl so the app still sees Shift+Insert
 ; rather than Ctrl+Shift+Insert, which means nothing to most apps.
-^+F10::
-{
-  if IsRWindow()
-    RPaste()
-  else
-    SendInput "{Blind}{Ctrl up}{Insert}"
-}
+^+F10::SendInput "{Blind}{Ctrl up}{Insert}"
 
 ; ##### /KEYBOARD }}}
 
