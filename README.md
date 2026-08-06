@@ -23,12 +23,14 @@ piece has to be linked or copied into place on a new machine, see below.
 | `Win+Shift+B` | Brave, new tab, cursor in the address bar |
 | `Win+Shift+N` | New scratch note |
 | `Win+Shift+T` | Summon the scratch window, or minimize it |
+| `Win+Shift+M` | Show a test meeting alert |
 | `Alt+`&#96; | Cycle the windows of the front app |
 | `Shift+Alt+Arrows` | PgUp / PgDn / Home / End |
 | `Ctrl+F10` | Copy (sends `Ctrl+Insert`) |
 | `Shift+F10` / `Ctrl+Shift+F10` | Paste (sends `Shift+Insert`) |
 | `Ctrl+Shift+V` | Paste as plain text |
 | `Ctrl+Alt+B` | Sign-off snippet |
+| `@q` / `@Q` (typed) | Sign-off: *Best,* / *Best regards,* + name |
 | `Ctrl+Alt+D` | Today's date, `YYYY-MM-DD` |
 | `Ctrl+Alt+P` | Rewrite the clipboard path's `\` as `/` |
 
@@ -44,6 +46,22 @@ Three of those have a detail worth knowing:
   only a backtick on a US layout; on an Italian one it prints `\`, and a
   character-based hotkey would silently fail to register. The scancode is the
   physical key above Tab whatever it prints.
+- **`@q` / `@Q` are hotstrings, not hotkeys** — literally typed, replaced on the
+  next space or Enter (which is then swallowed). The options matter: `C` makes
+  them case-sensitive, without which `@Q` would fire the `@q` one; and there is
+  deliberately no `*`, so the abbreviation only counts at a terminator and
+  `@quantity` is left alone.
+
+  `@` is chosen to survive a layout switch. Under *United States-International*
+  — installed here alongside plain *US* — `'`, `"`, `` ` ``, `^` and `~` are
+  dead keys, which rules out a backtick abbreviation; `@` is not one of them
+  and stays plain Shift+2 in both layouts.
+
+  Email addresses are the obvious worry, and AHK's default
+  no-trigger-inside-a-word rule handles it: an `@` preceded by an alphanumeric
+  never fires. `christian@quantum.com`, `foo@q.com` (where the `.` would
+  otherwise terminate the abbreviation) and R's S4 slot access `obj@q` are all
+  safe — which is why these are global, with no editor exclusion.
 - **`Ctrl+Alt+P` refuses to touch anything that isn't clearly a path.** It
   checks for `C:\…` or `\\server\share` on a single line first, so hitting it
   by accident over a regex, a `"\n"` or a LaTeX snippet leaves the clipboard
@@ -72,6 +90,43 @@ note instead of littering the folder.
 
 The notes directory is set by `NotesDir()` at the top of the section.
 
+### Meeting alerts
+
+A Power Automate flow posts a *"🚨 Meeting starting soon!"* card into Teams.
+The Teams banner is small and easy to miss, so the script escalates it into a
+large red always-on-top popup with a beep.
+
+It is in two pieces because reading *another* application's notifications means
+`Windows.UI.Notifications.Management.UserNotificationListener`, which is WinRT
+and out of AutoHotkey's reach:
+
+- `AutoHotkey/teams-meeting-watch.ps1` polls the notification store every 4s,
+  and appends a line to `%TEMP%\ahk-meeting-alert.txt` when a Teams toast
+  matches. `autostart.ahk` starts it hidden at load and kills it on exit.
+- The AHK side polls that file by byte offset every 2s and raises the popup.
+  Offsets rather than read-and-delete, so there is no race with the writer.
+
+Matching is on the words `Meeting starting soon`, never the 🚨 emoji: Windows
+PowerShell 5.1 reads a BOM-less script as ANSI, so an emoji literal in the
+`.ps1` would arrive mangled and match nothing. For the same reason the `.ps1`
+is deliberately ASCII-only.
+
+**The sender check is off by default.** `-RequireSender` additionally demands
+the word `Workflows` in the toast body. It ships off because if the real card
+does not carry that word, requiring it would silently suppress every alert —
+a broken-looking feature instead of a merely imprecise one. Turn it on once
+the capture log confirms the wording.
+
+`%TEMP%\ahk-meeting-capture.log` records **every** Teams toast, matched or not,
+and rolls over at 512 KB. That log is how you find out what the real card looks
+like — and whether Teams routes it through Windows at all. Teams can be set to
+draw its own notifications instead (Settings → Notifications → notification
+style), in which case nothing reaches the notification store and the log stays
+empty of meeting cards. If that happens, switch Teams to the Windows style.
+
+Tuning without editing the AHK: run the `.ps1` by hand with `-Phrase`,
+`-Sender`, `-RequireSender`, `-IntervalSec`.
+
 ### Requirements
 
 Paths are hardcoded where the executable is not resolvable by name:
@@ -81,6 +136,8 @@ Paths are hardcoded where the executable is not resolvable by name:
 | AutoHotkey **v2** | `AppData\Local\Programs\AutoHotkey\v2\AutoHotkey64.exe` |
 | gvim, built `+clientserver` | Not on `PATH` and no App Paths entry, so the full path is spelled out. `+clientserver` is what makes the scratch tabs work |
 | Brave, Excel, Word, PowerPoint | Resolved by name through the App Paths registry key |
+| Windows PowerShell 5.1 (`powershell.exe`) | Runs the meeting watcher. Not PowerShell 7 — the WinRT interop it relies on is 5.1-only |
+| Notification access | Settings → Privacy & security → Notifications. Without it the watcher logs the refusal and exits |
 
 PowerPoint is launched as `powerpnt`, not `powerpoint` — App Paths has no
 entry under the longer name.

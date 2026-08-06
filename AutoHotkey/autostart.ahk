@@ -18,6 +18,21 @@ ActivateWindow(hwnd)
   WinActivate hwnd
 }
 
+; --- auto-execute: runs once at load, and must stay above the first hotkey ---
+
+MeetingAlertPos := 0  ; byte offset in the trigger file already handled
+StartMeetingWatcher()
+OnExit(MeetingWatcherExit)
+
+MeetingWatcherExit(reason, code)
+{
+  ; On a reload -- or when a second instance forces this one out -- the
+  ; incoming instance kills the old watcher itself. Killing it here as well
+  ; would race that and take down the *new* watcher instead of the old one.
+  if (reason != "Reload" && reason != "Single")
+    KillMeetingWatcher()
+}
+
 
 ; ##### SCRIPT HYGIENE
 ; {{{
@@ -94,6 +109,125 @@ ActivateOrRun(exe, cmd, exclude := "")
 }
 
 ; ##### /LAUNCHERS }}}
+
+
+; ##### MEETING ALERT
+; {{{
+
+; A Power Automate flow posts a "Meeting starting soon" card into Teams. The
+; Teams banner is small, silent and easy to miss with a full screen of windows,
+; so a watcher turns that card into something you cannot miss.
+;
+; Split in two on purpose. Reading *another* app's notifications needs
+; Windows.UI.Notifications.Management.UserNotificationListener, which is WinRT
+; and out of AHK's reach -- so teams-meeting-watch.ps1 does the reading and
+; appends a line per hit, and this side only has to watch a small text file.
+MeetingWatcher() => A_ScriptDir "\teams-meeting-watch.ps1"
+TriggerFile()    => A_Temp "\ahk-meeting-alert.txt"
+WatcherPidFile() => A_Temp "\ahk-meeting-watch.pid"
+
+KillMeetingWatcher()
+{
+  if !FileExist(WatcherPidFile())
+    return
+  pid := Trim(FileRead(WatcherPidFile()), " `t`r`n")
+  ; Confirm it really is our PowerShell before killing anything. PIDs are
+  ; recycled, and a stale pid file that happens to name someone else's process
+  ; would otherwise make this script kill a stranger.
+  try
+  {
+    if (pid is Integer) && InStr(ProcessGetName(Integer(pid)), "powershell")
+      ProcessClose(Integer(pid))
+  }
+  FileDelete(WatcherPidFile())
+}
+
+StartMeetingWatcher()
+{
+  global MeetingAlertPos
+  KillMeetingWatcher()  ; a reload must not leave the previous one running
+
+  ; Resume at the end of the existing trigger file: anything already in it fired
+  ; in a previous session and is stale by definition.
+  MeetingAlertPos := FileExist(TriggerFile()) ? FileGetSize(TriggerFile()) : 0
+
+  Run(Format('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{1}"',
+             MeetingWatcher()), , "Hide")
+  SetTimer(CheckMeetingAlert, 2000)
+}
+
+; Poll by byte offset rather than re-reading the file: the watcher only ever
+; appends, so everything past the last offset is new and nothing has to be
+; deleted -- which keeps this free of the read/delete race a truncating design
+; would have.
+CheckMeetingAlert()
+{
+  global MeetingAlertPos
+  if !FileExist(TriggerFile())
+    return
+  size := FileGetSize(TriggerFile())
+  if (size = MeetingAlertPos)
+    return
+  if (size < MeetingAlertPos)  ; file was replaced or truncated -- start over
+    MeetingAlertPos := 0
+  if !(f := FileOpen(TriggerFile(), "r", "UTF-8"))
+    return
+  f.Pos := MeetingAlertPos
+  fresh := f.Read()
+  MeetingAlertPos := f.Pos
+  f.Close()
+  ; PowerShell writes UTF-8 with a BOM. AHK drops it on a plain sequential
+  ; open, but not after an explicit seek -- so without this the first alert
+  ; read from offset 0 arrives with a stray U+FEFF stuck to the front.
+  fresh := LTrim(fresh, Chr(0xFEFF))
+
+  ; If several arrived inside one interval, the newest is the one that matters.
+  latest := ""
+  for line in StrSplit(fresh, "`n", "`r")
+    if Trim(line) != ""
+      latest := Trim(line)
+  if latest != ""
+    ShowMeetingAlert(latest)
+}
+
+CloseAlert(g)
+{
+  try g.Destroy()
+}
+
+ShowMeetingAlert(text)
+{
+  static current := ""
+  if IsObject(current)
+    CloseAlert(current)
+
+  g := Gui("+AlwaysOnTop -MinimizeBox -MaximizeBox +ToolWindow", "Meeting starting soon")
+  g.BackColor := "A80000"
+  g.MarginX := 26, g.MarginY := 22
+  g.SetFont("s22 bold cWhite", "Segoe UI")
+  g.Add("Text", "w560 Center", "MEETING STARTING SOON")
+  g.SetFont("s11 norm cWhite")
+  g.Add("Text", "w560 Center", text)
+  g.SetFont("s10 norm")
+  btn := g.Add("Button", "w150 h36 xm+230 y+20", "Dismiss")
+  btn.OnEvent("Click", (*) => CloseAlert(g))
+  g.OnEvent("Escape", (*) => CloseAlert(g))
+  g.OnEvent("Close",  (*) => CloseAlert(g))
+
+  ; NoActivate is deliberate. This fires on its own schedule, quite possibly
+  ; mid-sentence, and a window that stole focus would swallow whatever you were
+  ; typing at the time.
+  g.Show("NoActivate Center")
+  SoundBeep(880, 150)
+  SoundBeep(1320, 150)
+  current := g
+  SetTimer(() => CloseAlert(g), -300000)  ; give up after 5 min if you are away
+}
+
+; See the popup without waiting for a real meeting
+#+m::ShowMeetingAlert("Test alert -- Workflows: Meeting starting soon!")
+
+; ##### /MEETING ALERT }}}
 
 
 ; ##### WINDOWS
@@ -217,6 +351,33 @@ NewScratchNote()
 
 ; Bye!
 ^!b::Send "Best,{Enter}{Enter}Christian"
+
+; The same sign-offs as typed abbreviations rather than hotkeys: write @q or @Q
+; and it is replaced on the next space or Enter.
+;
+; "@" rather than a backtick because it survives a layout switch. Under
+; US-International -- installed here alongside plain US -- the backtick is a
+; dead key, so it emits nothing until the next keystroke and a `q hotstring
+; becomes unreliable. That layout's dead keys are ' " ` ^ and ~ ; "@" is not
+; one of them and stays plain Shift+2 in both.
+;
+; Options are load-bearing. C, because hotstrings are case-insensitive by
+; default and @Q would otherwise fire the @q one. O, to swallow the space or
+; Enter that triggered the replacement, so the signature ends where you expect.
+; And no "*", so the abbreviation only counts at a terminator -- otherwise
+; @quantity would turn into "Best,<nl><nl>Christianuantity".
+;
+; The obvious worry with "@" is email addresses, and the default no-trigger-
+; inside-a-word rule handles it: an "@" preceded by an alphanumeric never
+; fires. That covers christian@quantum.com, foo@q.com -- where the "." would
+; otherwise be an ending character -- and R's S4 slot access, obj@q. All
+; verified, which is why these are global: an editor guard would only repeat
+; a check the hotstring already makes for itself.
+;
+; The trailing `n is intentional and does survive: it leaves the cursor on a
+; fresh line under the signature, ready for whatever comes after.
+:CO:@q::Best,`n`nChristian`n
+:CO:@Q::Best regards,`n`nChristian`n
 
 ; Today's date, for note headers, file names and YAML front matter
 ^!d::SendText FormatTime(, "yyyy-MM-dd")
