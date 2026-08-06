@@ -211,10 +211,9 @@ platform- or identity-specific is split into separate files pulled in with
 | `~/.gitconfig.personal` | no | Default email **and** the rule that overrides it. Kept out so no address is ever committed as file content |
 | `~/.gitconfig.fao` | no | The work email, one line, pulled in by that rule |
 | `~/.gitconfig.local` | no | Per-machine: credential username, editor, NTFS quirks. Genuinely differs between machines |
-| `~/.gitconfig.backup-*` | no | Transient backups, and they contain addresses |
 
-`.gitignore` lists the four excluded patterns, so copying one into this
-directory by accident cannot turn into a commit.
+`.gitignore` lists the excluded patterns, so copying one into this directory by
+accident cannot turn into a commit.
 
 Worth knowing: the personal address is already in this repo's **commit
 metadata** from earlier commits. Keeping it out of a tracked file stops it being
