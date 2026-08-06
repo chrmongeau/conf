@@ -1,0 +1,10 @@
+# The git config fragments that hold an identity or are machine-specific. They
+# belong in $HOME, never here -- this list is the backstop for the day one of
+# them gets copied into the repo alongside the files that do belong.
+.gitconfig.personal
+.gitconfig.fao
+.gitconfig.local
+.gitconfig.backup-*
+
+# ...but the templates are the whole point, so keep them.
+!.gitconfig.personal.example

@@ -1,0 +1,181 @@
+# =============================================================================
+# ~/.gitconfig — portable across Linux, WSL, and Git for Windows.
+#
+# Everything here is safe on a pure Linux box. Anything platform-specific lives
+# in a separate file pulled in at the bottom, so this file can be committed to a
+# dotfiles repo and symlinked everywhere unchanged.
+#
+# Layout — only the first two are in the dotfiles repo:
+#   ~/.gitconfig          this file — portable, version-controlled
+#   ~/.gitconfig.winfs    WSL only: repos living on the Windows drive
+#   ~/.gitconfig.personal default email, and the rule that picks the work one
+#   ~/.gitconfig.fao      the work email, pulled in by the rule above
+#   ~/.gitconfig.local    per-machine: credentials, editor, platform quirks.
+#
+# A missing include is ignored silently by git, so this file stays valid
+# without any of them — but with no ~/.gitconfig.personal there is no
+# user.email at all, and git will refuse to commit until you create one.
+#
+# Requires git >= 2.41 for every option used (fetch.all is the newest).
+# =============================================================================
+
+[user]
+	name = Christian Mongeau
+
+# The whole identity setup — the default address AND the rule that overrides it
+# per remote — lives in ~/.gitconfig.personal, which is deliberately NOT in the
+# dotfiles repo. See ~/.gitconfig.personal.example. No address appears in this
+# file, and no condition either: this is one line, and it never changes.
+[include]
+	path = ~/.gitconfig.personal
+
+# --- Line endings ------------------------------------------------------------
+# The single most important setting for a Windows + WSL + Linux workflow.
+#
+#   input = never translate on checkout, normalise CRLF -> LF on commit.
+#
+# Git for Windows ships core.autocrlf=true in its SYSTEM config, which writes
+# CRLF into the working tree. When the same checkout is also used from WSL
+# (autocrlf=input, no translation), the two disagree and files flip endings
+# depending on which git touched them last. Setting `input` in the GLOBAL config
+# overrides the system default without needing admin rights, so both
+# environments now agree. On Linux this is a no-op.
+#
+# Per-repo, a committed .gitattributes beats all of this and is what you should
+# rely on for anything shared:
+#     * text=auto eol=lf
+#     *.bat text eol=crlf
+#     *.cmd text eol=crlf
+#     *.ps1 text eol=crlf
+[core]
+	autocrlf = input
+	# Warn (do not block) if a commit would round-trip line endings badly.
+	safecrlf = warn
+	# Flag whitespace errors in diffs; these two are the uncontroversial ones.
+	whitespace = trailing-space,space-before-tab
+	# Speeds up `git status` in large trees by caching untracked-file scans.
+	untrackedCache = true
+
+[init]
+	defaultBranch = main
+
+# --- Reading: diffs, logs, listings ------------------------------------------
+[diff]
+	# Produces markedly more readable diffs than the default Myers algorithm,
+	# especially for reordered or reindented blocks.
+	algorithm = histogram
+	# Colour moved lines differently from added/removed ones.
+	colorMoved = zebra
+	colorMovedWS = allow-indentation-change
+	# a/ b/ prefixes become i/ w/ c/ etc. — says which side you are looking at.
+	mnemonicPrefix = true
+	renames = copies
+
+[log]
+	date = iso
+
+[column]
+	# Multi-column output for branch/tag listings when the terminal allows.
+	ui = auto
+
+[branch]
+	# Most recently used branches first — far more useful than alphabetical.
+	sort = -committerdate
+
+[tag]
+	# 1.10.0 sorts after 1.9.0, which alphabetical sorting gets wrong.
+	sort = version:refname
+
+# --- Writing: commit, push, fetch, pull --------------------------------------
+[commit]
+	# Puts the full diff in the editor while writing the message. The single
+	# best defence against committing something you did not mean to.
+	verbose = true
+
+[push]
+	default = simple
+	# `git push` on a new branch just works, no --set-upstream dance.
+	autoSetupRemote = true
+	# Push annotated tags reachable from the pushed commits.
+	followTags = true
+
+[fetch]
+	# Delete local remote-tracking refs whose upstream branch is gone.
+	prune = true
+	pruneTags = true
+	# Fetch every remote, not just origin.
+	all = true
+
+[pull]
+	# Refuse to silently create a merge commit when histories have diverged.
+	# `git pull` fast-forwards or stops and tells you; then you choose
+	# `git rebase` or `git merge` deliberately. Prevents accidental merge
+	# bubbles, which is the usual cause of a messy history.
+	ff = only
+
+[rebase]
+	# Honour `fixup!`/`squash!` commit prefixes automatically.
+	autoSquash = true
+	# Stash dirty work before a rebase and restore it after.
+	autoStash = true
+	# When rebasing a stack of branches, move the other branch tips too.
+	updateRefs = true
+
+[merge]
+	# Shows the common ancestor alongside both sides in a conflict. Strictly
+	# more information than the default `merge` style, and the reason a
+	# conflict happened is usually only visible in that base section.
+	conflictStyle = zdiff3
+
+[rerere]
+	# Remembers how you resolved a conflict and replays it if the same
+	# conflict reappears — pays for itself on any long-lived rebase.
+	enabled = true
+	autoupdate = true
+
+# --- Integrity ---------------------------------------------------------------
+# Reject objects that are malformed or maliciously crafted, in both directions.
+# Note: a few older public repos contain historically-malformed objects and will
+# fail to clone with this on. If you hit that, disable it for that repo only:
+#     git -c fetch.fsckobjects=false clone <url>
+[transfer]
+	fsckobjects = true
+[fetch "fsck"]
+	# Downgrade the most common benign offender rather than failing the fetch.
+	zeroPaddedFilemode = warn
+[receive]
+	fsckObjects = true
+
+# --- Convenience -------------------------------------------------------------
+[help]
+	# Offers the corrected command and waits, instead of silently running
+	# something you did not type. Never auto-executes.
+	autocorrect = prompt
+
+[alias]
+	s = status --short --branch
+	lg = log --oneline --graph --decorate --all
+	last = log -1 --stat
+	# Amend without opening the editor or changing the message.
+	amend = commit --amend --no-edit
+	# What am I about to push?
+	unpushed = log --oneline @{upstream}..HEAD
+	# Undo the last commit, keep the changes staged.
+	undo = reset --soft HEAD~1
+	# Show every config value with the file it came from — invaluable when
+	# two environments disagree.
+	whence = config --list --show-origin
+
+# --- Repos on the Windows drive, used from WSL -------------------------------
+# drvfs reports every file as 0777, so git sees phantom mode changes on every
+# file. Scoped to /mnt/c rather than set globally, because core.fileMode=false
+# on a real Linux filesystem would hide genuine permission changes — losing the
+# executable bit on a script, for example. Never matches on Windows or Linux.
+[includeIf "gitdir:/mnt/c/"]
+	path = ~/.gitconfig.winfs
+
+# --- Per-machine settings ----------------------------------------------------
+# Credential helpers, editor, platform quirks. Keep this OUT of the dotfiles
+# repo. Git ignores the line if the file does not exist.
+[include]
+	path = ~/.gitconfig.local

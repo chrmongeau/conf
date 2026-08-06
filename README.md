@@ -195,6 +195,77 @@ Worth doing after any edit: v2 treats a reference to an unknown variable as a
 *load-time* error, so a single typo stops the whole script from starting rather
 than just breaking one hotkey.
 
+## Git
+
+`.gitconfig` is portable across Linux, WSL and Git for Windows — everything
+platform- or identity-specific is split into separate files pulled in with
+`[include]`, and only two of them belong in this repo.
+
+### What is here, and what deliberately is not
+
+| File | In the repo? | Why |
+| --- | --- | --- |
+| `.gitconfig` | **yes** | Portable settings. Carries the name but no address |
+| `.gitconfig.winfs` | **yes** | `core.fileMode=false` for repos on `/mnt/c`, used from WSL. Pure settings |
+| `.gitconfig.personal.example` | **yes** | Template for the file below |
+| `~/.gitconfig.personal` | no | Default email **and** the rule that overrides it. Kept out so no address is ever committed as file content |
+| `~/.gitconfig.fao` | no | The work email, one line, pulled in by that rule |
+| `~/.gitconfig.local` | no | Per-machine: credential username, editor, NTFS quirks. Genuinely differs between machines |
+| `~/.gitconfig.backup-*` | no | Transient backups, and they contain addresses |
+
+`.gitignore` lists the four excluded patterns, so copying one into this
+directory by accident cannot turn into a commit.
+
+Worth knowing: the personal address is already in this repo's **commit
+metadata** from earlier commits. Keeping it out of a tracked file stops it being
+added as greppable file content, but it does not retroactively hide it.
+
+### Installing
+
+Copy or symlink `.gitconfig` and `.gitconfig.winfs` into `$HOME`, then create
+the machine-local pieces:
+
+```sh
+cp .gitconfig.personal.example ~/.gitconfig.personal   # then edit in the address
+```
+
+`~/.gitconfig.fao` and `~/.gitconfig.local` are optional — git ignores a missing
+include silently. Without `~/.gitconfig.personal` there is no `user.email` at
+all and git refuses to commit, which is the intended failure rather than
+committing under the wrong address.
+
+### How the work identity is picked
+
+`.gitconfig` contains no address and no mention of an employer — it just pulls
+in `~/.gitconfig.personal`, which holds the default address *and* the rule:
+anything whose remote URL contains `fao` gets `~/.gitconfig.fao` instead.
+
+Two conditions are needed, not one, because git treats `/` as significant in
+these globs exactly as `.gitignore` does:
+
+| Pattern | Matches `fao` in |
+| --- | --- |
+| `**/*fao*/**` | a directory component — `github.com/un-fao/x` |
+| `**/*fao*` | the repo name itself — `github.com/me/faostat` |
+
+Neither covers both alone. `**fao**` matches **nothing** — `**` is only special
+as a whole path component. Both forms also match `ssh` remotes
+(`git@github.com:un-fao/x.git`), which the older `**/un-fao/**` pattern did not.
+
+Everything ideally lives in one file, but it cannot: `[includeIf]` can only name
+a **path**, git has no syntax for a conditional value, and a file that includes
+itself dies with `exceeded maximum include depth (10)`. So the work address sits
+in its own one-line file. Two files is the floor.
+
+Verified on both gits — org-`fao`, repo-name-`fao` and `ssh` remotes all resolve
+to the work address; everything else to the personal one.
+
+Checking what applies where is `git config --show-origin --get user.email`, or
+the `whence` alias for everything at once. Note that `git config --global --get`
+does **not** expand includes — git turns them off whenever a specific file is
+named — so it reports an empty address and that is not a fault. Drop `--global`,
+or use `git var GIT_AUTHOR_IDENT` to see what a commit would really use.
+
 ## R
 
 `.RProfile` holds a set of long-standing convenience helpers and session

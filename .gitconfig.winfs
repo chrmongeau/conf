@@ -1,0 +1,7 @@
+# WSL only: repos that live on the Windows drive (/mnt/c/...).
+# Pulled in by ~/.gitconfig via [includeIf "gitdir:/mnt/c/"].
+[core]
+	# drvfs reports 0777 for everything, so without this every file shows a
+	# spurious mode change. Deliberately NOT global: on a real Linux filesystem
+	# this would mask genuine permission changes.
+	fileMode = false
