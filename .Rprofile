@@ -162,8 +162,98 @@ assign('wb2',
 	}
 , envir = .startup)
 
+# Attach packages, complaining loudly about any that are missing instead of
+# failing silently or stopping startup. requireNamespace() is the check because
+# it tests availability without attaching, so a missing package costs nothing.
+assign('ensure',
+	function(pkgs) {
+		# Catch warnings rather than letting them fly. A warning raised inside
+		# RStudio's sessionInit hook is deferred and then quietly dropped, so
+		# "package 'x' was built under R version y" -- which is worth seeing,
+		# it means the binary is newer than this R -- would vanish. Collect
+		# them and print them ourselves below. Wraps both the availability
+		# check and the attach, since either can be the one that warns.
+		notes <- character(0)
+		catching <- function(expr) withCallingHandlers(expr,
+			warning = function(w) {
+				notes <<- c(notes, trimws(conditionMessage(w)))
+				invokeRestart('muffleWarning')
+			})
+
+		ok <- vapply(pkgs,
+			function(p) catching(requireNamespace(p, quietly = TRUE)), logical(1))
+		for (pkg in pkgs[ok]) {
+			catching(suppressPackageStartupMessages(
+				library(pkg, character.only = TRUE, warn.conflicts = FALSE)))
+		}
+		# Rgui on Windows prints escape codes literally, so colour only where it
+		# will actually be rendered. RStudio handles ANSI; a plain terminal does
+		# when stdout is a tty and not redirected.
+		colour <- .Platform$GUI != 'Rgui' &&
+			(Sys.getenv('RSTUDIO') == '1' || isatty(stdout()))
+		# cat() to stdout, not message() to stderr. RStudio paints everything
+		# arriving on stderr in its own colour, which wins over the escape codes
+		# and turns the green line red. On stdout it honours them. Safe to use
+		# stdout here because none of this runs outside interactive().
+		say <- function(code, ...) {
+			if (colour) cat('\033[', code, 'm', ..., '\033[0m\n', sep = '')
+			else        cat(..., '\n', sep = '')
+		}
+
+		if (any(ok)) {
+			# Report the version too: with data.table in particular, which
+			# feature you get depends on it, and this is the cheapest place to
+			# see what you are actually running.
+			#
+			# utils:: is required, not decoration. Called from .First() the
+			# search path is only base and methods, so a bare packageVersion()
+			# fails. It happens to work for a package like MASS that Depends on
+			# utils, since library() attaches those -- which is exactly how this
+			# escaped the first round of testing.
+			vers <- vapply(pkgs[ok],
+				function(p) as.character(utils::packageVersion(p)), character(1))
+			say('1;32', 'LOADED   ', paste(pkgs[ok], vers, collapse = ', '))
+		}
+		# Plain yellow rather than the bold used for WARNING: related, but this
+		# is information, not something you need to act on.
+		for (n in notes) say('0;33', 'NOTE     ', n)
+		if (any(!ok)) {
+			bad <- pkgs[!ok]
+			say('1;33', 'WARNING  not installed: ', paste(bad, collapse = ', '))
+			say('1;33', '         install.packages(c(',
+				paste0("'", bad, "'", collapse = ', '), '))')
+		}
+		invisible(pkgs[!ok])
+	}
+, envir = .startup)
+
 ############################ ALIAS ##################################
 assign('table.prop', prop.table, envir = .startup)
 assign('table.marg', margin.table, envir = .startup)
 
 attach(.startup)
+
+# Packages worth having in every interactive session. In .First() rather than at
+# the top level of this file, so it runs after the workspace is restored.
+#
+# Careful: .First() still runs BEFORE .First.sys(), which is what attaches the
+# default packages. search() in here is only .GlobalEnv, methods, Autoloads and
+# base -- utils and stats are not up yet, so anything from them must be named
+# explicitly, as ensure() does with utils::packageVersion.
+#
+# Gated on interactive() so Rscript runs stay quiet and fast, and so a script
+# never silently inherits a package it did not ask for.
+.First <- function() {
+	if (!interactive()) return(invisible(NULL))
+	pkgs <- c('data.table')
+	if (Sys.getenv('RSTUDIO') == '1') {
+		# RStudio has not finished wiring up its console this early, and drops
+		# the escape codes emitted from here -- the text arrives, uncoloured.
+		# This hook fires once the session is genuinely ready, where the same
+		# codes render. Everywhere else .First() is early enough.
+		setHook('rstudio.sessionInit',
+			function(newSession) ensure(pkgs), action = 'append')
+	} else {
+		ensure(pkgs)
+	}
+}
