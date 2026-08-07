@@ -1,0 +1,29 @@
+# Global attributes. Git uses this path by default as core.attributesFile, so
+# nothing has to point at it. A repository's own .gitattributes always wins over
+# anything here, so these are defaults for repos that have not bothered.
+
+# --- Line endings ------------------------------------------------------------
+# core.autocrlf=input normalises to LF on commit, which is right for everything
+# except the file types Windows insists on reading as CRLF. cmd.exe will
+# misparse a .bat with LF endings, and PowerShell's parser is unreliable on
+# here-strings with LF, so these three are pinned regardless of platform.
+*.bat	text eol=crlf
+*.cmd	text eol=crlf
+*.ps1	text eol=crlf
+
+# Deliberately NOT here: a blanket `* text=auto eol=lf`. Globally that changes
+# how every repo without its own .gitattributes normalises, which turns into a
+# whole-tree diff the first time you touch an existing checkout. It belongs in
+# a repository's .gitattributes, where collaborators can see it.
+
+# --- Diff hunk headers -------------------------------------------------------
+# These name git's built-in funcname patterns, so `@@` hunk headers show the
+# enclosing function or heading instead of a random nearby line. Only drivers
+# confirmed present in this git are listed; an unknown name is silently ignored
+# rather than an error, which makes typos here invisible.
+*.md	diff=markdown
+*.Rmd	diff=markdown
+*.qmd	diff=markdown
+*.py	diff=python
+*.sh	diff=bash
+*.bash	diff=bash

@@ -1,20 +1,27 @@
 # =============================================================================
-# ~/.gitconfig — portable across Linux, WSL, and Git for Windows.
+# ~/.config/git/config — portable across Linux, WSL, and Git for Windows.
 #
 # Everything here is safe on a pure Linux box. Anything platform-specific lives
 # in a separate file pulled in at the bottom, so this file can be committed to a
 # dotfiles repo and symlinked everywhere unchanged.
 #
-# Layout — only the first two are in the dotfiles repo:
-#   ~/.gitconfig          this file — portable, version-controlled
-#   ~/.gitconfig.winfs    WSL only: repos living on the Windows drive
-#   ~/.gitconfig.personal default email, and the rule that picks the work one
-#   ~/.gitconfig.fao      the work email, pulled in by the rule above
-#   ~/.gitconfig.local    per-machine: credentials, editor, platform quirks.
+# Everything lives in ~/.config/git/, the location git has looked in for years,
+# rather than scattering half a dozen dotfiles through $HOME. Contents:
+#   config            this file — portable, version-controlled
+#   config.winfs      WSL only: repos living on the Windows drive
+#   config.personal   default email, and the rule that picks the work one
+#   config.fao        the work email, pulled in by the rule above
+#   config.local      per-machine: credentials, editor, platform quirks
+#   ignore            global excludes (git's default excludesFile)
+#   attributes        global attributes (git's default attributesFile)
+#
+# Every include below is a RELATIVE path. Git resolves those against the
+# directory of the file doing the including, so nothing here depends on ~
+# expanding correctly, and the same file works wherever the directory lands.
 #
 # A missing include is ignored silently by git, so this file stays valid
-# without any of them — but with no ~/.gitconfig.personal there is no
-# user.email at all, and git will refuse to commit until you create one.
+# without any of them — but with no config.personal there is no user.email at
+# all, and git will refuse to commit until you create one.
 #
 # Requires git >= 2.41 for every option used (fetch.all is the newest).
 # =============================================================================
@@ -23,11 +30,11 @@
 	name = Christian Mongeau
 
 # The whole identity setup — the default address AND the rule that overrides it
-# per remote — lives in ~/.gitconfig.personal, which is deliberately NOT in the
-# dotfiles repo. See ~/.gitconfig.personal.example. No address appears in this
-# file, and no condition either: this is one line, and it never changes.
+# per remote — lives in config.personal, which is deliberately NOT in the
+# dotfiles repo. See config.personal.example. No address appears in this file,
+# and no condition either: this is one line, and it never changes.
 [include]
-	path = ~/.gitconfig.personal
+	path = config.personal
 
 # --- Line endings ------------------------------------------------------------
 # The single most important setting for a Windows + WSL + Linux workflow.
@@ -172,10 +179,13 @@
 # on a real Linux filesystem would hide genuine permission changes — losing the
 # executable bit on a script, for example. Never matches on Windows or Linux.
 [includeIf "gitdir:/mnt/c/"]
-	path = ~/.gitconfig.winfs
+	path = config.winfs
 
 # --- Per-machine settings ----------------------------------------------------
 # Credential helpers, editor, platform quirks. Keep this OUT of the dotfiles
 # repo. Git ignores the line if the file does not exist.
+#
+# Last on purpose: it is the per-machine escape hatch, so it must be able to
+# override anything above it.
 [include]
-	path = ~/.gitconfig.local
+	path = config.local

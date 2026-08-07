@@ -197,23 +197,32 @@ than just breaking one hotkey.
 
 ## Git
 
-`.gitconfig` is portable across Linux, WSL and Git for Windows — everything
-platform- or identity-specific is split into separate files pulled in with
-`[include]`, and only two of them belong in this repo.
+The config lives in `~/.config/git/`, not as `~/.gitconfig` — git has looked
+there for years, and it keeps half a dozen fragments out of `$HOME`. It is
+portable across Linux, WSL and Git for Windows; everything platform- or
+identity-specific is split into separate files pulled in with `[include]`, and
+only the non-identity ones belong in this repo.
+
+Every include is a **relative** path. Git resolves those against the directory
+of the including file, so nothing depends on `~` expanding and the directory
+works wherever it lands.
 
 ### What is here, and what deliberately is not
 
 | File | In the repo? | Why |
 | --- | --- | --- |
-| `.gitconfig` | **yes** | Portable settings. Carries the name but no address |
-| `.gitconfig.winfs` | **yes** | `core.fileMode=false` for repos on `/mnt/c`, used from WSL. Pure settings |
-| `.gitconfig.personal.example` | **yes** | Template for the file below |
-| `~/.gitconfig.personal` | no | Default email **and** the rule that overrides it. Kept out so no address is ever committed as file content |
-| `~/.gitconfig.fao` | no | The work email, one line, pulled in by that rule |
-| `~/.gitconfig.local` | no | Per-machine: credential username, editor, NTFS quirks. Genuinely differs between machines |
+| `git/config` | **yes** | Portable settings. Carries the name but no address |
+| `git/config.winfs` | **yes** | `core.fileMode=false` for repos on `/mnt/c`, used from WSL. Pure settings |
+| `git/ignore` | **yes** | Global excludes. Git's default `core.excludesFile`, so nothing points at it |
+| `git/attributes` | **yes** | Global attributes. Git's default `core.attributesFile` |
+| `git/config.personal.example` | **yes** | Template for the file below |
+| `config.personal` | no | Default email **and** the rule that overrides it. Kept out so no address is ever committed as file content |
+| `config.fao` | no | The work email, one line, pulled in by that rule |
+| `config.local` | no | Per-machine: credential username, editor, NTFS quirks. Genuinely differs between machines |
 
-`.gitignore` lists the excluded patterns, so copying one into this directory by
-accident cannot turn into a commit.
+The `.gitignore` at the repo root lists the excluded patterns, so copying one in
+by accident cannot turn into a commit. The patterns carry no leading slash, so
+they match at any depth — inside `git/` as well as at the root.
 
 Worth knowing: the personal address is already in this repo's **commit
 metadata** from earlier commits. Keeping it out of a tracked file stops it being
@@ -221,23 +230,31 @@ added as greppable file content, but it does not retroactively hide it.
 
 ### Installing
 
-Copy or symlink `.gitconfig` and `.gitconfig.winfs` into `$HOME`, then create
-the machine-local pieces:
-
 ```sh
-cp .gitconfig.personal.example ~/.gitconfig.personal   # then edit in the address
+mkdir -p ~/.config/git
+cp git/config git/ignore git/attributes ~/.config/git/
+cp git/config.winfs ~/.config/git/                       # WSL only
+cp git/config.personal.example ~/.config/git/config.personal   # then edit in the address
 ```
 
-`~/.gitconfig.fao` and `~/.gitconfig.local` are optional — git ignores a missing
-include silently. Without `~/.gitconfig.personal` there is no `user.email` at
-all and git refuses to commit, which is the intended failure rather than
-committing under the wrong address.
+Or symlink `~/.config/git` at the `git/` directory, in which case the ignored
+`config.personal`, `config.fao` and `config.local` sit alongside the tracked
+files and `.gitignore` already covers them. Watch that a `git clean -xdf` in
+this repo would then delete them.
+
+**If `~/.gitconfig` exists it wins**, so migrating means moving the old file,
+not just creating the new one — otherwise nothing appears to change.
+
+`config.fao` and `config.local` are optional — git ignores a missing include
+silently. Without `config.personal` there is no `user.email` at all and git
+refuses to commit, which is the intended failure rather than committing under
+the wrong address.
 
 ### How the work identity is picked
 
-`.gitconfig` contains no address and no mention of an employer — it just pulls
-in `~/.gitconfig.personal`, which holds the default address *and* the rule:
-anything whose remote URL contains `fao` gets `~/.gitconfig.fao` instead.
+`config` contains no address and no condition — it just pulls in
+`config.personal`, which holds the default address *and* the rule: anything
+whose remote URL contains `fao` gets `config.fao` instead.
 
 Two conditions are needed, not one, because git treats `/` as significant in
 these globs exactly as `.gitignore` does:

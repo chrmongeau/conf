@@ -1,0 +1,10 @@
+# Global excludes. Git uses this path by default as core.excludesFile, so
+# nothing has to point at it.
+#
+# Keep this list short and personal. Anything a collaborator would also need
+# belongs in the repository's own .gitignore -- rules here are invisible to
+# everyone else, so a file ignored only by this list looks, to them, like a file
+# you simply forgot to commit.
+
+# vim swap files
+*.sw[0-1a-z]

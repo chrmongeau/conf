@@ -18,6 +18,6 @@
 # is only special as a whole path component. Both forms also match ssh remotes
 # (git@github.com:un-fao/x.git), which the older **/un-fao/** pattern did not.
 [includeIf "hasconfig:remote.*.url:**/*fao*/**"]
-	path = ~/.gitconfig.fao
+	path = config.fao
 [includeIf "hasconfig:remote.*.url:**/*fao*"]
-	path = ~/.gitconfig.fao
+	path = config.fao
