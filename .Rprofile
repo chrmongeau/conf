@@ -15,35 +15,6 @@ assign('rotate_x_text',
 	function() ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 0))
 , envir = .startup)
 
-# Tipo 'fre' di SPSS. Bisogna avere installato il pacchetto 'xtable'
-assign('fre',
-	function(x, html = FALSE, digits = 1, total = TRUE) {
-
-		tab1 <- table(x, useNA = 'always')
-		tab2 <- prop.table(tab1[]) * 100
-		tab3 <- cumsum(tab2)
-		fretab <- data.frame(freq = tab1[], perc = round(tab2, digits), cum = round(tab3, digits))
-		x <- names(tab1)
-		x[is.na(x)] <- 'NA'
-		if (total) {
-			fretab <- data.frame(rbind(fretab, c(sum(fretab$freq), 100, 100)))
-			rownames(fretab) <- c(x, 'total')
-		} else {
-			rownames(fretab) <- x
-		}
-
-		if (html) {
-			require(xtable)
-			file <- tempfile(fileext = c('.html'))
-			fretab <- xtable(fretab, digits = digits)
-			print(fretab, type = 'html', file = file)
-			browseURL(file)
-		} else {
-			return(fretab)
-		}
-	}
-, envir = .startup)
-
 # Se un numero è compreso in un intervallo o meno
 assign('E',
 	function(x, inf, sup, inc = TRUE) {
@@ -73,7 +44,7 @@ assign('download',
 
 		dir_out <- dirname(file)
 
-		if (dir_out == '.' & !file.exists(dir_out)) {
+		if (dir_out != '.' && !dir.exists(dir_out)) {
 			dir.create(dir_out, recursive = TRUE)
 		}
 

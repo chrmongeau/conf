@@ -284,9 +284,15 @@ or use `git var GIT_AUTHOR_IDENT` to see what a commit would really use.
 
 ## R
 
-`.RProfile` holds a set of long-standing convenience helpers and session
-defaults, loaded into an attached environment at startup. It has accumulated
-over many years and is due for a rethink — treat it as unstable for now.
+`.Rprofile` holds a set of long-standing convenience helpers, assigned into an
+environment that is `attach()`ed at startup so they are always available. It has
+accumulated over many years and is due for a rethink — treat it as unstable for
+now.
+
+The **case matters**: R looks for `.Rprofile`, and a file named `.RProfile` is
+silently ignored on Linux and WSL while working fine on Windows and macOS, whose
+filesystems are case-insensitive. It was spelled the second way here for years
+without anyone noticing.
 
 ## Vim
 
