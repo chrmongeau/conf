@@ -96,10 +96,10 @@ A Power Automate flow announces meetings that are about to start. Teams' own
 banner is easy to miss, so the flow also drops a file into OneDrive and the
 script turns that into a large red always-on-top popup with a beep.
 
-**The flow must write one file per alert** into `%OneDriveCommercial%\AHK\alerts`
-— a *new* file each time, not one file rewritten, since OneDrive's "create file"
-is far more predictable than an update and two meetings starting close together
-then cannot overwrite each other:
+**The flow must write one file per alert** into
+`%OneDriveCommercial%\AHK\alerts` — a *new* file each time, not one file
+rewritten, since OneDrive's "create file" is far more predictable than an update
+and two meetings starting close together then cannot overwrite each other:
 
 | | |
 | --- | --- |
@@ -287,3 +287,31 @@ or use `git var GIT_AUTHOR_IDENT` to see what a commit would really use.
 `.RProfile` holds a set of long-standing convenience helpers and session
 defaults, loaded into an attached environment at startup. It has accumulated
 over many years and is due for a rethink — treat it as unstable for now.
+
+## Vim
+
+**Not in this repo.** The vim configuration lives in its own:
+[chrmongeau/vimfiles](https://github.com/chrmongeau/vimfiles).
+
+That split is deliberate. Everything here is a file *copied out* to a
+destination; vimfiles is a runtime directory that has to *be* the destination —
+`autoload/`, `after/`, `colors/` are only found if vim's `runtimepath` points at
+them. So the repo is cloned straight into place and updated with `git pull`
+there, which folding it in here would cost: it would need either a symlink
+(awkward on Windows, where `core.symlinks = false` for exactly that reason) or a
+copy, which throws away update-in-place.
+
+| Platform | Clone to | Entry point |
+| --- | --- | --- |
+| Windows | `~\vimfiles` | `~\_vimrc`, a one-line stub: `source $HOME/vimfiles/vimrc` |
+| Linux / WSL | `~/.vim` | none needed — vim reads `~/.vim/vimrc` natively since 7.4 |
+
+```sh
+git clone https://github.com/chrmongeau/vimfiles ~/.vim        # Linux, WSL
+git clone https://github.com/chrmongeau/vimfiles ~/vimfiles    # Windows
+```
+
+Two things in this repo depend on vim being present, so they are worth checking
+after a fresh install: the scratch notes need **gvim built `+clientserver`**
+(see Requirements), and `git/config.local` sets `core.editor = vim`, so an
+unconfigured vim means bare commit-message editing.
