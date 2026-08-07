@@ -6,175 +6,170 @@ set.seed(1)
 # grep senza differenza maiuscole/minuscole
 assign('grepi',
 	function(p, x) {
-		grep(p, x, ignore.case=TRUE, value=TRUE)
+		grep(p, x, ignore.case = TRUE, value = TRUE)
 	}
-, env=.startup)
+, envir = .startup)
 
 # grep senza differenza maiuscole/minuscole
 assign('rotate_x_text',
 	function() ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 0))
-, env=.startup)
+, envir = .startup)
 
 # Tipo 'fre' di SPSS. Bisogna avere installato il pacchetto 'xtable'
 assign('fre',
-	function(x, html=FALSE, digits=1, total=TRUE) {
-		
-		tab1 <- table(x, useNA='always')
-		tab2 <- prop.table(tab1[])*100
+	function(x, html = FALSE, digits = 1, total = TRUE) {
+
+		tab1 <- table(x, useNA = 'always')
+		tab2 <- prop.table(tab1[]) * 100
 		tab3 <- cumsum(tab2)
-		fretab <- data.frame(freq=tab1[], perc=round(tab2,digits), cum=round(tab3,digits))
+		fretab <- data.frame(freq = tab1[], perc = round(tab2, digits), cum = round(tab3, digits))
 		x <- names(tab1)
 		x[is.na(x)] <- 'NA'
-		if ( total ) {
+		if (total) {
 			fretab <- data.frame(rbind(fretab, c(sum(fretab$freq), 100, 100)))
 			rownames(fretab) <- c(x, 'total')
 		} else {
 			rownames(fretab) <- x
 		}
-		
 
-		if ( html ) {
+		if (html) {
 			require(xtable)
-			file <- tempfile(fileext=c('.html'))
-			fretab <- xtable(fretab, digits=digits)
-			print(fretab, type='html', file=file)
+			file <- tempfile(fileext = c('.html'))
+			fretab <- xtable(fretab, digits = digits)
+			print(fretab, type = 'html', file = file)
 			browseURL(file)
 		} else {
 			return(fretab)
 		}
 	}
-, env=.startup)
+, envir = .startup)
 
 # Se un numero è compreso in un intervallo o meno
 assign('E',
-	function(x, inf, sup, inc=TRUE) {
+	function(x, inf, sup, inc = TRUE) {
 		ret <- FALSE
-		if ( inc ) {
-			if ( x >= inf & x <= sup ) ret <- TRUE
+		if (inc) {
+			if (x >= inf & x <= sup) ret <- TRUE
 		} else {
-			if ( x > inf & x < sup ) ret <- TRUE
+			if (x > inf & x < sup) ret <- TRUE
 		}
 		return(ret)
 	}
-, env=.startup)
-
+, envir = .startup)
 
 # Converte stringhe in numeri: 201.342,32 => 201342.32
 assign('str2num',
 	function(x) {
 		return(gsub(',', '.', gsub('\\.', '', as.character(x))))
 	}
-, env=.startup)
+, envir = .startup)
 
 # Download a page with RCurl and parse with htmlParse (from XML)
 assign('download',
-	function(url='', file='', verbose=TRUE, sleep.min=1, sleep.max=5) {
+	function(url = '', file = '', verbose = TRUE, sleep.min = 1, sleep.max = 5) {
 		library(XML)
 		library(RCurl)
-		if ( url == '' | file == '' ) stop('AAHHH!!')
+		if (url == '' | file == '') stop('AAHHH!!')
 
 		dir_out <- dirname(file)
 
-		if ( dir_out == '.' & !file.exists(dir_out) ) {
-			dir.create(dir_out, recursive=TRUE)
+		if (dir_out == '.' & !file.exists(dir_out)) {
+			dir.create(dir_out, recursive = TRUE)
 		}
 
 		# Non ho trovato metodo per scrivere direttamente da XML quindi passo da RCurl
 		x <- ''
 		class(x) <- 'try-error'
 		size <- 1 # Basta che sia != 0
-		tmpfile <- paste(dir_out, 'xxx.html', sep='/')
-		while ( class(x) == 'try-error' | size == 0 ) {
-			if ( verbose ) print(paste('Downloading:', url))
-			x <- try(getURL(url, useragent='Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20100101 Firefox/17.0'), silent=TRUE)
-			if ( verbose ) print(class(x))
-			if ( class(x) != 'try-error' ) {
-				cat(x, file=tmpfile)
+		tmpfile <- paste(dir_out, 'xxx.html', sep = '/')
+		while (class(x) == 'try-error' | size == 0) {
+			if (verbose) print(paste('Downloading:', url))
+			x <- try(getURL(url, useragent = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20100101 Firefox/17.0'), silent = TRUE)
+			if (verbose) print(class(x))
+			if (class(x) != 'try-error') {
+				cat(x, file = tmpfile)
 				size <- file.info(tmpfile)$size
 			}
 			Sys.sleep(sample(sleep.min:sleep.max, 1))
 		}
-		cat(x, file=file)
+		cat(x, file = file)
 		# XXX cosa succede quando "Errore in htmlParse(x) : File  does not exist" ???
 		return(htmlParse(x))
 	}
-, env=.startup)
-
+, envir = .startup)
 
 assign('wd',
-	function(path=NA) {
-		if ( missing(path) ) {
+	function(path = NA) {
+		if (missing(path)) {
 			getwd()
 		} else {
 			setwd(path)
 		}
 	}
-, env=.startup)
+, envir = .startup)
 
 assign('sort_mat',
-	function(mat, by=1) {
-		arg <- list(mat[,by[1]])
-		if ( length(by) >= 2 ) {
-			for ( i in 2:length(by) ) {
-				arg[[i]] <- mat[,by[i]]
+	function(mat, by = 1) {
+		arg <- list(mat[, by[1]])
+		if (length(by) >= 2) {
+			for (i in 2:length(by)) {
+				arg[[i]] <- mat[, by[i]]
 			}
 		}
-		mat <- mat[do.call('order', arg),]
+		mat <- mat[do.call('order', arg), ]
 		return(mat)
 	}
-, env=.startup)
+, envir = .startup)
 
 assign('xy',
-	function(x=NA, y=NA, by=NA, symbol=16) {
-		if ( missing(x) | missing(y) ) {
+	function(x = NA, y = NA, by = NA, symbol = 16) {
+		if (missing(x) | missing(y)) {
 			stop('Series?')
 		}
-		if  ( missing(by) ) {
+		if (missing(by)) {
 			colors <- 'black'
 			#stop('by?')
 		} else {
-			if ( is.factor(by) ) {
+			if (is.factor(by)) {
 				colors <- topo.colors(length(levels(by)))[unlist(by)]
 			} else {
 				colors <- topo.colors(length(unique(by)))[by[order(by)]]
 			}
 		}
-		plot(x, y, pch=symbol, col=colors)
+		plot(x, y, pch = symbol, col = colors)
 	}
-, env=.startup)
-
+, envir = .startup)
 
 assign('cuts',
-	function(x, y=NA) {
-		if ( missing(y) ) {
-			return(cut(x, breaks=quantile(x), include.lowest=TRUE))
+	function(x, y = NA) {
+		if (missing(y)) {
+			return(cut(x, breaks = quantile(x), include.lowest = TRUE))
 		} else {
-			return(cut(x, breaks=quantile(x, probs=(1:(y-1))/y), include.lowest=TRUE))
+			return(cut(x, breaks = quantile(x, probs = (1:(y - 1)) / y), include.lowest = TRUE))
 		}
 	}
-, env=.startup)
+, envir = .startup)
 
 assign('hrefs',
-	function(x=NA) {
-		if ( missing(x) ) stop('URL?')
+	function(x = NA) {
+		if (missing(x)) stop('URL?')
 		require(RCurl) # XXX si potrebbe fare anche senza rcurl
 		require(XML)
 		doc <- htmlParse(getURL(x))
 		a <- getNodeSet(doc, '//a')
 		return(sapply(a, xmlGetAttr, 'href'))
 	}
-, env=.startup)
-
+, envir = .startup)
 
 assign('lib',
 	function(libs) {
-		for ( i in libs ) {
-			if ( require(i, character.only=TRUE) ) {
+		for (i in libs) {
+			if (require(i, character.only = TRUE)) {
 				print(paste(i, 'caricato correttamente.'))
 			} else {
 				print(paste('Proviamo a installare', i))
 				install.packages(i)
-				if ( require(i, character.only=TRUE) ) {
+				if (require(i, character.only = TRUE)) {
 					print(paste(i, 'installato e caricato correttamente.'))
 				} else {
 					stop(paste('Impossibile installare', i))
@@ -182,23 +177,22 @@ assign('lib',
 			}
 		}
 	}
-, env=.startup)
+, envir = .startup)
 
 assign('wb',
-	function(x, file=paste(tempfile(), 'csv', sep='.')) {
-		write.csv(x, file) ; browseURL(file)
-}
-, env=.startup)
+	function(x, file = paste(tempfile(), 'csv', sep = '.')) {
+		write.csv(x, file); browseURL(file)
+	}
+, envir = .startup)
 
 assign('wb2',
-	function(x, file=paste(tempfile(), 'csv', sep='.')) {
-		write.csv2(x, file) ; browseURL(file)
-}
-, env=.startup)
+	function(x, file = paste(tempfile(), 'csv', sep = '.')) {
+		write.csv2(x, file); browseURL(file)
+	}
+, envir = .startup)
 
 ############################ ALIAS ##################################
-assign('table.prop', prop.table, env=.startup)
-assign('table.marg', margin.table, env=.startup)
-
+assign('table.prop', prop.table, envir = .startup)
+assign('table.marg', margin.table, envir = .startup)
 
 attach(.startup)
