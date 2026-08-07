@@ -1,8 +1,3 @@
-# Set a specific CRAN mirror when using R-SWS
-options('repos' = c(CRAN = ifelse(getRversion() <= "3.3.3", "http://hqlprsws1.hq.un.fao.org/fao-sws-cran/", "https://cran.rstudio.com/")))
-
-Sys.setenv(R_SWS_SHARE_PATH = "R:/")
-
 set.seed(1)
 
 # http://stackoverflow.com/questions/1189759/expert-r-users-whats-in-your-rprofile#comment12948814_2139002
@@ -50,29 +45,6 @@ assign('fre',
 	}
 , env=.startup)
 
-assign('xz_co',
-	function(obj, file=NA) {
-		if ( missing(file) ) {
-			stop('File?')
-		} else {
-			xzfile <- xzfile(file, 'w', compression=9)  # compressed file
-			write.table(a, file=xzfile)
-			close(xzfile)
-			# TODO controlla che sia stato scritto
-		}
-	}
-, env=.startup)
-
-assign('xz_ex',
-	function(file=NA) {
-		if ( missing(file) ) {
-			stop('File?')
-		} else {
-			return(read.table(gzfile(file)))
-		}
-	}
-, env=.startup)
-
 # Se un numero è compreso in un intervallo o meno
 assign('E',
 	function(x, inf, sup, inc=TRUE) {
@@ -88,7 +60,7 @@ assign('E',
 
 
 # Converte stringhe in numeri: 201.342,32 => 201342.32
-assign('str2num ',
+assign('str2num',
 	function(x) {
 		return(gsub(',', '.', gsub('\\.', '', as.character(x))))
 	}
@@ -128,37 +100,6 @@ assign('download',
 	}
 , env=.startup)
 
-
-
-###########################################################################
-assign('aggr',
-	function(obj=NA, by=NA, fun=NA) {
-		if ( missing(obj) | missing(by) | !is.function(fun) ) {
-			stop('aggr(obj=oggetto, by=categorie, fun=funzione)')
-		} else {
-			return(aggregate(obj, by=list(by), fun))
-		}
-	}
-, env=.startup)
-
-assign('by_mean',
-	function(obj=NA, by=NA, fun=mean) {
-		aggr(obj=obj, by=by, fun=fun)
-	}
-, env=.startup)
-
-assign('by_sum',
-	function(obj=NA, by=NA, fun=sum) {
-		aggr(obj=obj, by=by, fun=fun)
-	}
-, env=.startup)
-
-assign('by_count',
-	function(obj=NA, by=NA, fun=length) {
-		aggr(obj=obj, by=by, fun=fun)
-	}
-, env=.startup)
-###########################################################################
 
 assign('wd',
 	function(path=NA) {
@@ -203,15 +144,6 @@ assign('xy',
 , env=.startup)
 
 
-assign('logger',
-	function(x) {
-		cat(x)
-		flush.console()
-		cat(paste(rep('\b', nchar(x)), collapse=''))
-		#cat('\n')
-	}
-, env=.startup)
-
 assign('cuts',
 	function(x, y=NA) {
 		if ( missing(y) ) {
@@ -233,28 +165,6 @@ assign('hrefs',
 	}
 , env=.startup)
 
-
-# Converti un dataframe di tipo long (con 'id' ed eventuale 'time') in wide
-assign('to_long',
-	function(dat=NA, id='id', time='time') {
-		if ( is.null(dat[[id]]) ) stop('No ID')
-		if ( is.null(dat[[time]]) ) {
-			dat[[time]] <- unlist(tapply(dat[[id]], dat[[id]], function(x) 1:length(x)))
-		}
-		return(reshape(dat, direction='wide', idvar=id, timevar=time))
-	}
-, env=.startup)
-
-assign('quant',
-	function(dat=NA, n=1, na.rm=TRUE) {
-		if ( missing(dat) ) stop('Dati?')
-		if ( n == 1 ) {
-			return(quantile(dat, na.rm=TRUE))
-		} else {
-			return(quantile(dat, na.rm=TRUE, probs=seq(0,1,by=1/n)))
-		}
-	}
-, env=.startup)
 
 assign('lib',
 	function(libs) {
@@ -290,50 +200,5 @@ assign('wb2',
 assign('table.prop', prop.table, env=.startup)
 assign('table.marg', margin.table, env=.startup)
 
-
-#####################################################################
-# marginal.plot(iris[1:4],groups=iris[,5])
-######################################################################
-
-
-###### library/graphics/html/pairs.html
-######################################################################
-# ## put histograms on the diagonal
-#panel.hist <- function(x, ...)
-#{
-#    usr <- par("usr"); on.exit(par(usr))
-#    par(usr = c(usr[1:2], 0, 1.5) )
-#    h <- hist(x, plot = FALSE)
-#    breaks <- h$breaks; nB <- length(breaks)
-#    y <- h$counts; y <- y/max(y)
-#    rect(breaks[-nB], 0, breaks[-1], y, col="cyan", ...)
-#}
-#pairs(USJudgeRatings[1:5], panel=panel.smooth,
-#      cex = 1.5, pch = 24, bg="light blue",
-#      diag.panel=panel.hist, cex.labels = 2, font.labels=2)
-#
-### put (absolute) correlations on the upper panels,
-### with size proportional to the correlations.
-#panel.cor <- function(x, y, digits=2, prefix="", cex.cor, ...)
-#{
-#    usr <- par("usr"); on.exit(par(usr))
-#    par(usr = c(0, 1, 0, 1))
-#    r <- abs(cor(x, y))
-#    txt <- format(c(r, 0.123456789), digits=digits)[1]
-#    txt <- paste(prefix, txt, sep="")
-#    if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
-#    text(0.5, 0.5, txt, cex = cex.cor * r)
-#}
-#pairs(USJudgeRatings, lower.panel=panel.smooth, upper.panel=panel.cor)
-#
-######################################################################
-
-# empirical cumulative distribution function
-# plot.ecdf()
-
-
-# library(latticeExtra)
-# ecdfplot(~iris[,1],groups=iris[,5], auto.key = list(columns = 2))
-# ecdfplot(~iris[,1]|sample(iris[,5]),groups=iris[,5], auto.key = list(columns = 2))
 
 attach(.startup)
