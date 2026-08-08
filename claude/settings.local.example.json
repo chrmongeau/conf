@@ -6,6 +6,27 @@
     "Deliberately gitignored -- permission rules in particular tend to",
     "embed absolute paths and machine names."
   ],
+
+  "_statusLine_comment": [
+    "WINDOWS ONLY -- delete this block on Linux, macOS and WSL, where the",
+    "statusLine in settings.json already works.",
+    "",
+    "Windows has no exec bit for .sh, so the shared settings.json command",
+    "`~/.claude/statusline.sh` is not run but OPENED via the .sh file",
+    "association. With .sh associated to an editor, the script pops open",
+    "in that editor on every statusline refresh, which is several times a",
+    "minute. Routing it through Git Bash executes it instead.",
+    "",
+    "Needs jq on the Git Bash PATH: winget install jqlang.jq. It is not",
+    "bundled with Git for Windows. Adjust the path if Git is installed",
+    "elsewhere; no quotes around it, as the default path has no spaces."
+  ],
+  "statusLine": {
+    "type": "command",
+    "command": "C:\\Users\\Mongeau\\AppData\\Local\\Programs\\Git\\bin\\bash.exe -c ~/.claude/statusline.sh",
+    "padding": 2
+  },
+
   "permissions": {
     "allow": []
   }
