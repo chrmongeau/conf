@@ -45,7 +45,9 @@ Replies: tight, no preamble, no recap of the question.
 
 ## Style
 
-- Markdown hard-wrapped at 77 columns. Count characters, not bytes — `awk`'s
-  `length()` over-reports on em dashes and arrows.
+- Markdown prose hard-wrapped at 77 columns. Count characters, not bytes —
+  `awk`'s `length()` over-reports on em dashes and arrows. The limit applies
+  to narrative text only: tables, diagrams, code blocks, long URLs and
+  anything else that wrapping would break run as long as they need to.
 - Comments explain *why*. One restating the code is noise; one recording the
   constraint that forced it is worth keeping.
