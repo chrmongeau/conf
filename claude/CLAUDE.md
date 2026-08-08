@@ -21,9 +21,13 @@
 
 ## Work in small steps
 
-Prefer a small correct step that can be reacted to over a large speculative
-one. Address the evidence reported — an error, an output, a screenshot —
-rather than restating the theory.
+When implementing, prefer a small correct step that can be reacted to over a
+large speculative one. Address the evidence reported — an error, an output, a
+screenshot — rather than restating the theory.
+
+Design and planning are the exception: speculation is cheap in a document and
+expensive in code, so think the whole approach through in one pass before
+implementing any of it.
 
 Replies: tight, no preamble, no recap of the question.
 
