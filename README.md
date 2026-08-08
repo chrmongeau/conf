@@ -295,12 +295,16 @@ being one.
 | `settings.json` | Model, theme, editor mode, permissions, statusline |
 | `statusline.sh` | Two-line status bar; needs `jq` |
 | `CLAUDE.md` | Global instructions, loaded every session |
+| `hooks/*.sh` | Wrap-width check and `git push` guard |
 | `settings.local.example.json` | Template for machine-local overrides |
 
-The first three are copied into place as they are; the fourth is a template.
+Everything but the last file is copied into place as it is; that one is a
+template.
 
 ```sh
+mkdir -p ~/.claude/hooks
 cp claude/settings.json claude/statusline.sh claude/CLAUDE.md ~/.claude/
+cp claude/hooks/*.sh ~/.claude/hooks/ && chmod +x ~/.claude/hooks/*.sh
 ```
 
 **`attribution.commit` and `attribution.pr` are set to empty strings.** That
@@ -308,6 +312,29 @@ removes the `Co-Authored-By` trailer and the *Generated with Claude Code*
 footer at the source — the instruction never reaches the model, so it cannot
 be forgotten in a long session. It is a settings key, not a request, which is
 why it belongs here rather than in `CLAUDE.md`.
+
+### Hooks
+
+Both hooks enforce a rule that `CLAUDE.md` states in prose. The difference is
+that the harness runs them, so neither can be forgotten late in a session —
+the same reason `attribution` is a setting rather than an instruction.
+
+`md-width.sh` runs after `Edit`/`Write` and exits 2 when the text just
+written to a `.md` file breaks the 77-column limit, which feeds the offending
+lines back to the model to rewrap. It checks only the newly written text,
+never the whole file: this README's AutoHotkey section has pre-existing 78-80
+column lines, and a whole-file check would fail on every future edit without
+an unrelated reflow. Lines inside fenced code blocks are exempt, since
+wrapping a command would change what it means. Width is counted in characters
+via `perl -CSD` — a byte count reads an em dash as three columns.
+
+`git-push-ask.sh` runs before every `Bash` call and forces a confirmation
+dialog for anything containing a `git push`. It asks rather than denies,
+because the rule is never to push *unless asked*; a hard deny would also
+block the times a push was wanted. It matters because `defaultMode` is
+`auto`, under which a push would otherwise run unprompted. Cost is about
+22 ms on every Bash call, which is the price of catching the compound
+`git commit && git push` form that a permission rule alone would miss.
 
 `editorMode` puts the prompt input in vim mode, with `jj` remapped to Escape
 in insert mode — the same habit as the vim config. `autoCompactWindow` defers
