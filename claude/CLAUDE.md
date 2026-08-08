@@ -25,9 +25,10 @@ When implementing, prefer a small correct step that can be reacted to over a
 large speculative one. Address the evidence reported — an error, an output, a
 screenshot — rather than restating the theory.
 
-Design and planning are the exception: speculation is cheap in a document and
-expensive in code, so think the whole approach through in one pass before
-implementing any of it.
+Brainstorming, design and planning are the exception: speculation is cheap in
+a document and expensive in code. Explore the alternatives and settle the
+whole approach first, then present it and wait for approval — a finished
+design is not a licence to start building.
 
 Replies: tight, no preamble, no recap of the question.
 
