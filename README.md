@@ -292,7 +292,7 @@ being one.
 
 | File | Holds |
 | --- | --- |
-| `settings.json` | Model, theme, permissions, statusline, plugins |
+| `settings.json` | Model, theme, editor mode, permissions, statusline |
 | `statusline.sh` | Two-line status bar; needs `jq` |
 | `CLAUDE.md` | Global instructions, loaded every session |
 | `settings.local.example.json` | Template for machine-local overrides |
@@ -308,6 +308,17 @@ removes the `Co-Authored-By` trailer and the *Generated with Claude Code*
 footer at the source — the instruction never reaches the model, so it cannot
 be forgotten in a long session. It is a settings key, not a request, which is
 why it belongs here rather than in `CLAUDE.md`.
+
+`editorMode` puts the prompt input in vim mode, with `jj` remapped to Escape
+in insert mode — the same habit as the vim config. `autoCompactWindow` defers
+auto-compaction to 800k tokens, which only makes sense while the model is a
+1M-context one; on a 200k model the threshold is never reached and compaction
+effectively stops.
+
+`effortLevel` and `alwaysThinkingEnabled` are set to what is already the
+default in 2.1.226 — thinking is on unless explicitly `false`, and effort
+resolution falls back to `high`. They are written out anyway so an upstream
+change of default does not silently change behaviour here.
 
 Without `jq`, `statusline.sh` prints an install hint instead of a status bar
 rather than failing silently. It reads `resets_at` as Unix epoch seconds,

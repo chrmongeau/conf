@@ -3,6 +3,13 @@
   "theme": "dark",
   "tui": "fullscreen",
   "autoUpdatesChannel": "latest",
+  "editorMode": "vim",
+  "vimInsertModeRemaps": {
+    "jj": "<Esc>"
+  },
+  "effortLevel": "high",
+  "alwaysThinkingEnabled": true,
+  "autoCompactWindow": 800000,
   "attribution": {
     "commit": "",
     "pr": ""
