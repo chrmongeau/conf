@@ -18,12 +18,13 @@
     "minute. Routing it through Git Bash executes it instead.",
     "",
     "Needs jq on the Git Bash PATH: winget install jqlang.jq. It is not",
-    "bundled with Git for Windows. Adjust the path if Git is installed",
-    "elsewhere; no quotes around it, as the default path has no spaces."
+    "bundled with Git for Windows. Replace <you> below with the real user",
+    "and check where Git actually installed; leave the path unquoted, as",
+    "quoting it inside the -c argument breaks under cmd."
   ],
   "statusLine": {
     "type": "command",
-    "command": "C:\\Users\\Mongeau\\AppData\\Local\\Programs\\Git\\bin\\bash.exe -c ~/.claude/statusline.sh",
+    "command": "C:\\Users\\<you>\\AppData\\Local\\Programs\\Git\\bin\\bash.exe -c ~/.claude/statusline.sh",
     "padding": 2
   },
 
