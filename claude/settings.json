@@ -1,15 +1,4 @@
 {
-  "model": "opus[1m]",
-  "theme": "dark",
-  "tui": "fullscreen",
-  "autoUpdatesChannel": "latest",
-  "editorMode": "vim",
-  "vimInsertModeRemaps": {
-    "jj": "<Esc>"
-  },
-  "effortLevel": "high",
-  "alwaysThinkingEnabled": true,
-  "autoCompactWindow": 800000,
   "attribution": {
     "commit": "",
     "pr": ""
@@ -17,6 +6,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
+  "model": "opus[1m]",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",
@@ -24,8 +14,27 @@
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true
+    "skill-creator@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true
   },
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      }
+    }
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
+  "autoCompactWindow": 800000,
+  "autoUpdatesChannel": "latest",
+  "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
+  "theme": "dark",
+  "editorMode": "vim",
+  "vimInsertModeRemaps": {
+    "jj": "<Esc>"
+  },
   "skipAutoPermissionPrompt": true
 }
