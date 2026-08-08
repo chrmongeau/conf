@@ -343,21 +343,34 @@ Keep `CLAUDE.md` short. Every line is re-read at the start of every session,
 in every project, so a line earns its place only if it changes behaviour;
 description of the user or narrative about past sessions does not.
 
-### The document-skills plugin
+### Skills
 
-Anthropic's `xlsx`, `docx`, `pptx` and `pdf` skills ship as one plugin, from
-a marketplace that is not registered by default:
+`enabledPlugins` in `settings.json` names what should be active, but it only
+enables — a new machine needs them installed first. `claude-plugins-official`
+is registered automatically; the marketplace holding the document skills is
+not.
 
 ```sh
+claude plugin install frontend-design@claude-plugins-official
+claude plugin install skill-creator@claude-plugins-official
 claude plugin marketplace add anthropics/skills
 claude plugin install document-skills@anthropic-agent-skills
 ```
 
-They add no capability that `openpyxl` and `python-docx` lack. What they add
-is the failure knowledge — that `openpyxl` writes formulas with no cached
-value, that Word fragments a visible phrase across `<w:r>` runs so a
-find-and-replace on the XML matches nothing, that an untracked redline is
-invisible in the accepted view — plus helper scripts for each.
+`fao-design-system` is deliberately **not** tracked here. It lives in
+`~/.claude/skills/fao-design-system`, next to the zip it was unpacked from,
+and it stays out of this repo because it bundles FAO's Design System v3.6.8
+minified CSS and the official logos — brand assets that do not belong in a
+public repository. Copy the directory across by hand, or re-unpack the zip.
+
+### The document-skills plugin
+
+`xlsx`, `docx`, `pptx` and `pdf` add no capability that `openpyxl` and
+`python-docx` lack. What they add is the failure knowledge — that `openpyxl`
+writes formulas with no cached value, that Word fragments a visible phrase
+across `<w:r>` runs so a find-and-replace on the XML matches nothing, that an
+untracked redline is invisible in the accepted view — plus helper scripts for
+each.
 
 Their `SKILL.md` files say the dependencies are preinstalled. That refers to
 Anthropic's container, not to a Debian or WSL box. Installing them:
