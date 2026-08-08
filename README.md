@@ -343,6 +343,51 @@ Keep `CLAUDE.md` short. Every line is re-read at the start of every session,
 in every project, so a line earns its place only if it changes behaviour;
 description of the user or narrative about past sessions does not.
 
+### The document-skills plugin
+
+Anthropic's `xlsx`, `docx`, `pptx` and `pdf` skills ship as one plugin, from
+a marketplace that is not registered by default:
+
+```sh
+claude plugin marketplace add anthropics/skills
+claude plugin install document-skills@anthropic-agent-skills
+```
+
+They add no capability that `openpyxl` and `python-docx` lack. What they add
+is the failure knowledge — that `openpyxl` writes formulas with no cached
+value, that Word fragments a visible phrase across `<w:r>` runs so a
+find-and-replace on the XML matches nothing, that an untracked redline is
+invisible in the accepted view — plus helper scripts for each.
+
+Their `SKILL.md` files say the dependencies are preinstalled. That refers to
+Anthropic's container, not to a Debian or WSL box. Installing them:
+
+```sh
+sudo apt install libreoffice-calc libreoffice-writer tesseract-ocr
+pip3 install --user --break-system-packages pdfplumber markitdown \
+  defusedxml reportlab pikepdf
+npm config set prefix ~/.npm-global && npm install -g docx pptxgenjs
+```
+
+**`soffice` being on `PATH` does not mean the skills work.** A LibreOffice
+install can lack Calc and Writer while still providing `soffice`; every
+spreadsheet then fails to load with "source file could not be loaded", and
+`recalc.py` reports that as a timeout because it waits out its clock for
+output that never comes. Check for `localc` and `lowriter`, not `soffice`.
+
+**`NODE_PATH` belongs in `.profile`, not `.bashrc`.** The skills call
+`require('docx')` bare, and Node does not search the npm global prefix on its
+own. `.bashrc` returns early for non-interactive shells, which is how tool
+commands run, so an export at the end of that file never executes.
+
+`pip3` needs `--break-system-packages` on Debian 12+: the interpreter is
+marked externally managed and refuses a plain install. `--user` keeps it out
+of the system tree, so neither flag needs `sudo`.
+
+None of this exists on the Windows install, which has no LibreOffice, pandoc,
+poppler or Node. Run document work from WSL against the `/mnt/c` path — the
+files sit on the Windows filesystem either way.
+
 ## R
 
 `.Rprofile` holds a set of long-standing convenience helpers, assigned into an
