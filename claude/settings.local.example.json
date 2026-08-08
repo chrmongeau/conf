@@ -1,0 +1,12 @@
+{
+  "_comment": [
+    "Copy to ~/.claude/settings.local.json for anything that must NOT be",
+    "shared: machine-specific permission rules, a different model on a",
+    "weaker box, env vars. Local overrides the shared settings.json.",
+    "Deliberately gitignored -- permission rules in particular tend to",
+    "embed absolute paths and machine names."
+  ],
+  "permissions": {
+    "allow": []
+  }
+}

@@ -8,3 +8,10 @@
 
 # ...but the templates are the whole point, so keep them.
 !.gitconfig.personal.example
+
+# Claude Code. Only the shared config in claude/ is tracked; the rest of
+# ~/.claude is live state -- transcripts, credentials, plugin caches -- and
+# .credentials.json in particular must never reach a public repo.
+settings.local.json
+.credentials.json
+.claude.json

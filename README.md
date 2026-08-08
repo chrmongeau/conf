@@ -282,6 +282,47 @@ does **not** expand includes — git turns them off whenever a specific file is
 named — so it reports an empty address and that is not a fault. Drop `--global`,
 or use `git var GIT_AUTHOR_IDENT` to see what a commit would really use.
 
+## Claude Code
+
+`claude/` holds the shareable part of `~/.claude` — about 14 KB out of a
+directory that is otherwise ~445 MB of live state (transcripts, credentials,
+plugin caches, and `projects/`, which also holds the memories). None of that
+belongs in a repo, so the config is copied out rather than the directory
+being one.
+
+| File | Holds |
+| --- | --- |
+| `settings.json` | Model, theme, permissions, statusline, plugins |
+| `statusline.sh` | Two-line status bar; needs `jq` |
+| `CLAUDE.md` | Global instructions, loaded every session |
+| `settings.local.example.json` | Template for machine-local overrides |
+
+The first three are copied into place as they are; the fourth is a template.
+
+```sh
+cp claude/settings.json claude/statusline.sh claude/CLAUDE.md ~/.claude/
+```
+
+**`attribution.commit` and `attribution.pr` are set to empty strings.** That
+removes the `Co-Authored-By` trailer and the *Generated with Claude Code*
+footer at the source — the instruction never reaches the model, so it cannot
+be forgotten in a long session. It is a settings key, not a request, which is
+why it belongs here rather than in `CLAUDE.md`.
+
+Without `jq`, `statusline.sh` prints an install hint instead of a status bar
+rather than failing silently. It reads `resets_at` as Unix epoch seconds,
+which is what Claude Code pipes in, and hides the plan-limit segment until
+the first API response of the session supplies one.
+
+`settings.local.json` is for anything machine-specific and is gitignored,
+along with `.credentials.json` and `.claude.json`. Permission rules are the
+usual reason to need it — they tend to embed absolute paths and machine
+names.
+
+Keep `CLAUDE.md` short. Every line is re-read at the start of every session,
+in every project, so a line earns its place only if it changes behaviour;
+description of the user or narrative about past sessions does not.
+
 ## R
 
 `.Rprofile` holds a set of long-standing convenience helpers, assigned into an
