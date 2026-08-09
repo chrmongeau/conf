@@ -421,6 +421,36 @@ silently ignored on Linux and WSL while working fine on Windows and macOS, whose
 filesystems are case-insensitive. It was spelled the second way here for years
 without anyone noticing.
 
+### Installing
+
+```sh
+cp .Rprofile ~/                                     # Linux, WSL
+```
+
+```powershell
+[Environment]::SetEnvironmentVariable('R_USER', $env:USERPROFILE, 'User')
+Copy-Item .Rprofile $env:USERPROFILE                # Windows, after the above
+```
+
+**Windows needs `R_USER`.** R does not treat `%USERPROFILE%` as `~` there: it
+uses the shell's "personal" folder, which OneDrive redirects to Documents. So
+`~` reported `…\OneDrive - <org>\Documents` and the profile had to sit there,
+outside `$HOME` and under a path containing the employer's name. `R_USER`
+overrides that, which is what keeps every file in this repository addressable
+as `$HOME/<something>`. It does not disturb the package library — that lives
+under `AppData\Local\R` and is unaffected — but `~` also governs `.Rhistory`
+and Rgui's file dialogs, so those move with it.
+
+The variable only applies to processes started after it is set, so an open
+terminal or a running RStudio keeps the old value until restarted. The copy
+in the Documents folder is kept as a fallback until RStudio is confirmed to
+honour `R_USER`; once it is, that copy should be deleted rather than left to
+drift.
+
+Most of the profile is wrapped in `interactive()`, so `Rscript` legitimately
+shows none of it — check with `R --interactive`, or by testing whether
+`.startup` appears in `search()`.
+
 ## Vim
 
 **Not in this repo.** The vim configuration lives in its own:
