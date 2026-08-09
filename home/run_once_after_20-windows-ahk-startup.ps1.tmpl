@@ -1,0 +1,37 @@
+{{ if eq .chezmoi.os "windows" -}}
+# Register autostart.ahk in the Startup folder.
+#
+# The script does not launch itself, and it is deliberately NOT run out of the
+# checkout: pointing the shortcut into the repository means moving or deleting
+# the clone silently kills every hotkey at the next login.
+#
+# Failing loudly is deliberate. run_once_ records only successful runs, so an
+# exit 1 here means the next apply retries — whereas skipping quietly would
+# mark this done forever and leave the hotkeys unregistered.
+#
+# Windows PowerShell 5.1 syntax only — pwsh may not be installed.
+
+$dir = Join-Path $env:USERPROFILE '.config\autohotkey'
+$exe = Join-Path $env:LOCALAPPDATA 'Programs\AutoHotkey\v2\AutoHotkey64.exe'
+$lnk = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\autostart-ahk.lnk'
+
+if (-not (Test-Path $exe)) {
+    Write-Error "AutoHotkey v2 not found at $exe - install it (winget install AutoHotkey.AutoHotkey), then run chezmoi apply again."
+    exit 1
+}
+
+$script = Join-Path $dir 'autostart.ahk'
+if (-not (Test-Path $script)) {
+    Write-Error "$script is missing - chezmoi should have written it before this script ran."
+    exit 1
+}
+
+$s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+$s.TargetPath       = $exe
+$s.Arguments        = '"' + $script + '"'
+$s.WorkingDirectory = $dir
+$s.Save()
+
+Write-Output "Startup shortcut registered: $lnk -> $script"
+Write-Output "Takes effect at next login; run the script by hand to start it now."
+{{ end -}}

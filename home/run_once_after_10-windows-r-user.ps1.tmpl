@@ -1,0 +1,22 @@
+{{ if eq .chezmoi.os "windows" -}}
+# Point R's ~ at the user profile.
+#
+# Windows R does not treat %USERPROFILE% as ~. It uses the shell's "personal"
+# folder, which OneDrive redirects to Documents, so ~ resolves to a path
+# carrying the employer's name and .Rprofile has to live outside $HOME.
+# R_USER overrides that. The package library is unaffected: it sits under
+# AppData\Local\R. ~ also governs .Rhistory and Rgui's file dialogs.
+#
+# Windows PowerShell 5.1 syntax only — pwsh may not be installed.
+
+$target  = $env:USERPROFILE
+$current = [Environment]::GetEnvironmentVariable('R_USER', 'User')
+
+if ($current -eq $target) {
+    Write-Output "R_USER already set to $target"
+} else {
+    [Environment]::SetEnvironmentVariable('R_USER', $target, 'User')
+    Write-Output "R_USER set to $target"
+    Write-Output "Only processes started from now on see it; restart RStudio."
+}
+{{ end -}}
