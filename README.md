@@ -14,30 +14,51 @@ chezmoi init --apply https://github.com/chrmongeau/conf.git
 
 # existing machine — pull the repo, then deploy what changed
 chezmoi update
+
+# ...and --init as well, whenever .chezmoi.toml.tmpl has changed
+chezmoi update --init
 ```
+
+**`chezmoi init <url>` does nothing once the source directory exists.** It
+does not pull and it does not regenerate the config, so re-running the
+install line to pick up a fix leaves the machine exactly as it was and the
+fix appears not to work. `update` is the pull; `--init` is what re-renders
+the config from its template. When in doubt, `chezmoi update --init` is
+always safe.
 
 chezmoi itself: `winget install twpayne.chezmoi` on Windows, or the `.deb`
 from the [releases page] on Debian and Ubuntu.
 
 [releases page]: https://github.com/twpayne/chezmoi/releases
 
+**On a fresh Windows install, PowerShell refuses to run scripts at all** —
+`LocalMachine` is `Restricted`, and the `run_once_` scripts die with
+`UnauthorizedAccess` before executing a line. The config template handles it
+by invoking them with `-ExecutionPolicy Bypass`, which applies to that one
+invocation and changes nothing about the machine's policy. A machine where
+this seems not to be a problem is one where somebody set `CurrentUser` to
+`RemoteSigned` at some point — check with `Get-ExecutionPolicy -List` before
+concluding the default works.
+
+That fix covers chezmoi only. A PowerShell profile of your own stays blocked
+until you set the policy yourself, which is a real change to the machine and
+deliberately not something an apply does for you.
+
 `chezmoi diff` shows what an apply *would* change and writes nothing, which
 is the right thing to run first on a machine that has been edited by hand.
 `chezmoi status` is the terse version of the same question. Neither needs a
 network connection.
 
-`init` clones into `~/.local/share/chezmoi` and every command then finds it
-without being told. To keep the checkout somewhere you actually work in
-instead, say so once in `~/.config/chezmoi/chezmoi.toml` — otherwise every
-command needs `--source` and `chezmoi update` looks in the wrong place:
+`init` clones into `~/.local/share/chezmoi`, and `home/.chezmoi.toml.tmpl`
+then writes `~/.config/chezmoi/chezmoi.toml` pointing back at it. That config
+is machine-local and untracked — it names a path that differs on every
+machine, the one thing that cannot live in the repository it points at.
 
-```toml
-sourceDir = "/path/to/this/checkout"
-```
-
-That file is machine-local and deliberately untracked: it names a path that
-differs on every machine, which is the one thing that cannot live in the
-repository it points at.
+`sourceDir` is derived from `.chezmoi.sourceDir` rather than written
+literally, so a checkout kept somewhere you actually work in survives a
+re-init instead of being quietly reset to the default location. The template
+takes the parent, because `.chezmoi.sourceDir` resolves to the `home/`
+subdirectory that `.chezmoiroot` selects.
 
 ### How it is laid out
 
