@@ -1,0 +1,27 @@
+{{/*
+   The vim configuration is its own repository, not part of this one, and is
+   deployed as a clone rather than as copied files — so it stays editable and
+   committable in place.
+
+   The target name is Vim's own rule, not a preference: the compiled-in
+   'runtimepath' default is $HOME/vimfiles on MS-Windows and $HOME/.vim on
+   Unix. A stock Windows Vim never reads .vim.
+
+   --ff-only so a pull can never merge over work committed on this machine;
+   it fails loudly instead.
+
+   Without refreshPeriod the clone is made once and then never pulled again
+   by a plain `chezmoi apply` — only `apply -R` refreshes it, which is a
+   quiet way to run a year-old vim config. The reference documents
+   refreshPeriod for file and archive externals only, but it does take effect
+   on git-repo: verified by setting 1s and watching a plain apply pull.
+*/ -}}
+{{ if eq .chezmoi.os "windows" -}}
+["vimfiles"]
+{{ else -}}
+[".vim"]
+{{ end -}}
+    type = "git-repo"
+    url = "https://github.com/chrmongeau/vimfiles.git"
+    pull.args = ["--ff-only"]
+    refreshPeriod = "168h"
