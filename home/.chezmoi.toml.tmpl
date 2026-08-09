@@ -1,0 +1,30 @@
+{{/*
+   Generated into ~/.config/chezmoi/chezmoi.toml by `chezmoi init`, and by
+   any command run with --init. Evaluated before the source state is read,
+   which is what lets it fix how the scripts below are invoked.
+*/ -}}
+{{/*
+   Keep pointing at wherever this checkout actually is. .chezmoi.sourceDir
+   resolves to the .chezmoiroot subdirectory, so `dir` takes it back up to
+   the repository root, which is what sourceDir expects. Derived rather than
+   written literally, so a checkout kept outside chezmoi's default location
+   survives a re-init instead of being silently reset to it.
+*/ -}}
+sourceDir = "{{ .chezmoi.sourceDir | dir }}"
+
+{{ if eq .chezmoi.os "windows" -}}
+# Windows blocks .ps1 execution by default: LocalMachine is Restricted on a
+# fresh install, so chezmoi's run_once_ scripts die with UnauthorizedAccess
+# before running a line. Bypass applies to this invocation only — it changes
+# nothing about the machine's policy, unlike Set-ExecutionPolicy.
+#
+# -NoProfile because the profile is not wanted here and, on a Restricted
+# machine, failing to load it prints an error of its own.
+#
+# `powershell` rather than chezmoi's default `pwsh`: PowerShell 7 is a
+# separate install that a new machine will not have, and the scripts are
+# written to 5.1 syntax for that reason.
+[interpreters.ps1]
+    command = "powershell"
+    args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]
+{{ end -}}
