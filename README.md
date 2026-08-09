@@ -544,13 +544,24 @@ step, and nothing to forget.
 
 | Platform | Clone to | Entry point |
 | --- | --- | --- |
-| Windows | `~\vimfiles` | `~\_vimrc`, a one-line stub: `source $HOME/vimfiles/vimrc` |
-| Linux / WSL | `~/.vim` | none needed — vim reads `~/.vim/vimrc` natively since 7.4 |
+| Windows | `~\vimfiles` | none needed — vim reads `~\vimfiles\vimrc` natively |
+| Linux / WSL | `~/.vim` | none needed — vim reads `~/.vim/vimrc` natively |
 
 Those destinations are **vim's own defaults**, not a preference: the
 compiled-in `'runtimepath'` is `$HOME/vimfiles` on MS-Windows and
 `$HOME/.vim` on Unix, so a stock Windows vim never reads `.vim`. The
 external file is templated on `.chezmoi.os` for that reason.
+
+**No `_vimrc` stub is needed**, and there used to be one here. `starting.txt`
+lists the Win32 vimrc search as `$HOME/_vimrc`, then `$HOME/vimfiles/vimrc`,
+then `$VIM/_vimrc`, and only the first one found is used — so a `_vimrc`
+does not *enable* `vimfiles/vimrc`, it **pre-empts** it. The stub worked only
+because its one line sourced the real file. Deleting it makes vim find the
+config on its own, exactly as it does on Unix.
+
+Worth deleting rather than leaving: since `_vimrc` takes precedence, anything
+that accumulates in it applies on that machine alone, and the difference is
+invisible until something behaves differently on one box.
 
 `refreshPeriod = "168h"` makes a `chezmoi apply` pull vimfiles at most
 weekly; `chezmoi apply -R` forces it. Without a refresh period the clone
