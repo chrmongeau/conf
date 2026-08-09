@@ -5,3 +5,15 @@
 	# spurious mode change. Deliberately NOT global: on a real Linux filesystem
 	# this would mask genuine permission changes.
 	fileMode = false
+
+	# Compare only the stat fields that survive the Windows/WSL boundary.
+	# By default git also compares inode, uid, gid, device and sub-second
+	# timestamps. WSL git and Git for Windows report different values for those
+	# on the same /mnt/c file, so each permanently invalidates the other's
+	# cached stat data: every file then shows as modified with an EMPTY diff,
+	# and even `git update-index --really-refresh` cannot settle it. "minimal"
+	# restricts the comparison to size and whole-second mtime, which both agree
+	# on. Also NOT global — it is only correct where two gits share a checkout.
+	checkStat = minimal
+	# ctime is not meaningful across the boundary either.
+	trustctime = false
