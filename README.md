@@ -172,11 +172,12 @@ entry under the longer name.
 ### Installing
 
 The script does not start itself, and it is **not** run out of this
-repository. It is copied to the AutoHotkey folder under Documents, and the
-Startup shortcut points there:
+repository. It is copied under `$HOME`, and the Startup shortcut points
+there:
 
 ```powershell
-$dir = "$env:OneDrive\Documents\AutoHotkey"   # OneDrive resolves the org name
+$dir = "$env:USERPROFILE\.config\autohotkey"
+New-Item -ItemType Directory -Force $dir | Out-Null
 Copy-Item AutoHotkey\autostart.ahk $dir
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut(
     "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\autostart-ahk.lnk")
@@ -186,12 +187,15 @@ $s.WorkingDirectory  = $dir
 $s.Save()
 ```
 
-Running it from the checkout would be one less copy, but it ties the login
-to wherever this repository happens to sit. The Documents folder is stable
-and roams, so the script survives the repository being moved or deleted —
-at the cost of `autostart.ahk` being the one tracked file that needs copying
-out after an edit. The shortcut stores an absolute path either way, so it
-has to be recreated if that folder moves. Delete the one `.lnk` to undo.
+Running it from the checkout would save a copy, but it ties the login to
+wherever this repository happens to sit — deleting or moving the checkout
+would then silently kill every hotkey at the next login. `$HOME` keeps the
+deployed script independent of that, and matches where everything else in
+this repository lands. The script is self-contained — no `#Include`, no
+`A_ScriptDir` — so its location does not affect its behaviour.
+
+The shortcut stores an absolute path, so it has to be recreated if `$HOME`
+moves. Delete the one `.lnk` to undo.
 
 To check the script parses without running it:
 
