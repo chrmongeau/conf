@@ -176,7 +176,7 @@ repository. It is copied to the AutoHotkey folder under Documents, and the
 Startup shortcut points there:
 
 ```powershell
-$dir = "$env:USERPROFILE\OneDrive - Food and Agriculture Organization\Documents\AutoHotkey"
+$dir = "$env:OneDrive\Documents\AutoHotkey"   # OneDrive resolves the org name
 Copy-Item AutoHotkey\autostart.ahk $dir
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut(
     "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\autostart-ahk.lnk")
