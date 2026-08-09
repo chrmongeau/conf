@@ -1,0 +1,20 @@
+{{/*
+   Targets listed here are not managed on this machine. The file is a
+   template, so the list is decided per machine at apply time.
+
+   WSL reports itself as linux; the only reliable distinguisher is the kernel
+   release string, which carries "microsoft" under WSL2. Hostname cannot be
+   used: WSL and Windows report the SAME name on one box.
+*/}}
+{{- $wsl := and (eq .chezmoi.os "linux")
+                (contains "microsoft" (lower .chezmoi.kernel.osrelease)) -}}
+
+{{ if ne .chezmoi.os "windows" }}
+.config/autohotkey
+{{ end }}
+
+{{/* checkStat/trustctime only make sense where WSL and Git for Windows
+     share one checkout, so this is WSL-only, not Linux-wide. */}}
+{{ if not $wsl }}
+.config/git/config.winfs
+{{ end }}
