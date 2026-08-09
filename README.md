@@ -1,12 +1,75 @@
 # conf
 
-Personal configuration files. Nothing here is installed automatically — each
-piece has to be linked or copied into place on a new machine, see below.
+Personal configuration files, deployed by [chezmoi]. Every target is
+`$HOME`-relative, so nothing here hardcodes a machine, a user or an employer
+path.
+
+[chezmoi]: https://www.chezmoi.io
+
+## Installing
+
+```sh
+# new machine — clones this repo and deploys everything
+chezmoi init --apply https://github.com/chrmongeau/conf.git
+
+# existing machine — pull the repo, then deploy what changed
+chezmoi update
+```
+
+chezmoi itself: `winget install twpayne.chezmoi` on Windows, or the `.deb`
+from the [releases page] on Debian and Ubuntu.
+
+[releases page]: https://github.com/twpayne/chezmoi/releases
+
+`chezmoi diff` shows what an apply *would* change and writes nothing, which
+is the right thing to run first on a machine that has been edited by hand.
+`chezmoi status` is the terse version of the same question. Neither needs a
+network connection.
+
+`init` clones into `~/.local/share/chezmoi` and every command then finds it
+without being told. To keep the checkout somewhere you actually work in
+instead, say so once in `~/.config/chezmoi/chezmoi.toml` — otherwise every
+command needs `--source` and `chezmoi update` looks in the wrong place:
+
+```toml
+sourceDir = "/path/to/this/checkout"
+```
+
+That file is machine-local and deliberately untracked: it names a path that
+differs on every machine, which is the one thing that cannot live in the
+repository it points at.
+
+### How it is laid out
+
+`.chezmoiroot` points chezmoi at `home/`, so only that subtree is treated as
+configuration. This file, `examples/` and `StrokesPlus.xml` sit outside it
+and are never deployed.
+
+Inside `home/`, names encode what happens to the file:
+
+| Name | Becomes | Why |
+| --- | --- | --- |
+| `dot_Rprofile` | `~/.Rprofile` | leading dots in the source tree hide files from tooling |
+| `dot_claude/executable_statusline.sh` | `~/.claude/statusline.sh`, mode 755 | the one file that needs `+x` |
+| `dot_claude/settings.json.tmpl` | rendered per machine | Windows carries a smaller plugin set |
+| `.chezmoiignore` | — | drops targets that do not belong on this machine |
+| `.chezmoiexternal.toml` | — | the vim config, cloned from its own repository |
+| `run_once_after_*.ps1.tmpl` | — | setup that is not a file: see below |
+
+The two `run_once_` scripts set `R_USER` and register the AutoHotkey startup
+shortcut. They are Windows-only, achieved by rendering to nothing elsewhere —
+chezmoi skips an empty script. They record only *successful* runs, so a
+failure is retried on the next apply rather than silently marked done.
+
+**Things that stay manual**, because they hold machine-local or private
+values and are gitignored: `~/.config/git/config.personal` and
+`~/.claude/settings.local.json`. `examples/` holds a starting point for each.
 
 ## AutoHotkey
 
-`AutoHotkey/autostart.ahk` is the single AHK script, written for
-**AutoHotkey v2**. It is organised into vim fold sections (`{{{` / `}}}`).
+`home/dot_config/autohotkey/autostart.ahk` is the single AHK script, written
+for **AutoHotkey v2**. It is organised into vim fold sections (`{{{` /
+`}}}`).
 
 ### Hotkeys
 
@@ -171,36 +234,25 @@ entry under the longer name.
 
 ### Installing
 
-The script does not start itself, and it is **not** run out of this
-repository. It is copied under `$HOME`, and the Startup shortcut points
-there:
+`chezmoi apply` writes the script to `~/.config/autohotkey/` and
+`run_once_after_20-windows-ahk-startup.ps1` registers the Startup shortcut
+that launches it. AutoHotkey v2 must already be installed — the script exits
+with an error naming the winget command if it is not, and the next apply
+retries.
 
-```powershell
-$dir = "$env:USERPROFILE\.config\autohotkey"
-New-Item -ItemType Directory -Force $dir | Out-Null
-Copy-Item AutoHotkey\autostart.ahk $dir
-$s = (New-Object -ComObject WScript.Shell).CreateShortcut(
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\autostart-ahk.lnk")
-$s.TargetPath        = "$env:LOCALAPPDATA\Programs\AutoHotkey\v2\AutoHotkey64.exe"
-$s.Arguments         = '"' + $dir + '\autostart.ahk"'
-$s.WorkingDirectory  = $dir
-$s.Save()
-```
-
-Running it from the checkout would save a copy, but it ties the login to
-wherever this repository happens to sit — deleting or moving the checkout
-would then silently kill every hotkey at the next login. `$HOME` keeps the
-deployed script independent of that, and matches where everything else in
-this repository lands. The script is self-contained — no `#Include`, no
-`A_ScriptDir` — so its location does not affect its behaviour.
+The script is **not** run out of this repository. Doing so would save a copy
+but tie the login to wherever the checkout happens to sit: moving or deleting
+it would silently kill every hotkey at the next login. It is self-contained —
+no `#Include`, no `A_ScriptDir` — so its location does not affect behaviour.
 
 The shortcut stores an absolute path, so it has to be recreated if `$HOME`
-moves. Delete the one `.lnk` to undo.
+moves. Delete the one `.lnk` to undo, and `chezmoi state delete-bucket
+--bucket=scriptState` to let the registering script run again.
 
 To check the script parses without running it:
 
 ```
-AutoHotkey64.exe /validate AutoHotkey\autostart.ahk
+AutoHotkey64.exe /validate %USERPROFILE%\.config\autohotkey\autostart.ahk
 ```
 
 Worth doing after any edit: v2 treats a reference to an unknown variable as a
@@ -223,18 +275,19 @@ works wherever it lands.
 
 | File | In the repo? | Why |
 | --- | --- | --- |
-| `git/config` | **yes** | Portable settings. Carries the name but no address |
-| `git/config.winfs` | **yes** | `core.fileMode=false` for repos on `/mnt/c`, used from WSL. Pure settings |
-| `git/ignore` | **yes** | Global excludes. Git's default `core.excludesFile`, so nothing points at it |
-| `git/attributes` | **yes** | Global attributes. Git's default `core.attributesFile` |
-| `git/config.personal.example` | **yes** | Template for the file below |
+| `dot_config/git/config` | **yes** | Portable settings. Carries the name but no address |
+| `dot_config/git/config.winfs` | **yes** | `core.fileMode=false` for repos on `/mnt/c`, used from WSL. Pure settings |
+| `dot_config/git/ignore` | **yes** | Global excludes. Git's default `core.excludesFile`, so nothing points at it |
+| `dot_config/git/attributes` | **yes** | Global attributes. Git's default `core.attributesFile` |
+| `examples/git-config.personal.example` | **yes** | Template for the file below |
 | `config.personal` | no | Default email **and** the rule that overrides it. Kept out so no address is ever committed as file content |
 | `config.fao` | no | The work email, one line, pulled in by that rule |
 | `config.local` | no | Per-machine: credential username, editor, NTFS quirks. Genuinely differs between machines |
 
 The `.gitignore` at the repo root lists the excluded patterns, so copying one in
 by accident cannot turn into a commit. The patterns carry no leading slash, so
-they match at any depth — inside `git/` as well as at the root.
+they match at any depth — inside `home/dot_config/git/` as much as at the
+root.
 
 Worth knowing: the personal address is already in this repo's **commit
 metadata** from earlier commits. Keeping it out of a tracked file stops it being
@@ -242,17 +295,19 @@ added as greppable file content, but it does not retroactively hide it.
 
 ### Installing
 
-```sh
-mkdir -p ~/.config/git
-cp git/config git/ignore git/attributes ~/.config/git/
-cp git/config.winfs ~/.config/git/                       # WSL only
-cp git/config.personal.example ~/.config/git/config.personal   # then edit in the address
-```
+`chezmoi apply` writes `config`, `ignore` and `attributes` into
+`~/.config/git/`. `config.winfs` is deployed **only on WSL** — the
+`.chezmoiignore` template drops it elsewhere, since `checkStat` and
+`trustctime` only make sense where WSL git and Git for Windows share one
+checkout. Hostname cannot make that decision: WSL and Windows report the same
+name on one box, so the test is the kernel release string.
 
-Or symlink `~/.config/git` at the `git/` directory, in which case the ignored
-`config.personal`, `config.fao` and `config.local` sit alongside the tracked
-files and `.gitignore` already covers them. Watch that a `git clean -xdf` in
-this repo would then delete them.
+`config.personal` stays manual and gitignored — copy it in and edit the
+address:
+
+```sh
+cp examples/git-config.personal.example ~/.config/git/config.personal
+```
 
 **If `~/.gitconfig` exists it wins**, so migrating means moving the old file,
 not just creating the new one — otherwise nothing appears to change.
@@ -296,24 +351,25 @@ or use `git var GIT_AUTHOR_IDENT` to see what a commit would really use.
 
 ## Claude Code
 
-`claude/` holds the shareable part of `~/.claude` — about 14 KB out of a
-directory that is otherwise ~445 MB of live state (transcripts, credentials,
-plugin caches, and `projects/`, which also holds the memories). None of that
-belongs in a repo, so the config is copied out rather than the directory
-being one.
+`home/dot_claude/` holds the shareable part of `~/.claude` — about 14 KB out
+of a directory that is otherwise ~445 MB of live state (transcripts,
+credentials, plugin caches, and `projects/`, which also holds the memories).
+None of that belongs in a repo, so the config is deployed into the directory
+rather than the directory being the repo.
 
 | File | Holds |
 | --- | --- |
-| `settings.json` | Model, theme, editor mode, permissions, statusline |
-| `statusline.sh` | Two-line status bar; needs `jq` |
+| `settings.json.tmpl` | Model, theme, editor mode, permissions, statusline |
+| `executable_statusline.sh` | Two-line status bar; needs `jq` |
 | `CLAUDE.md` | Global instructions, loaded every session |
-| `settings.local.example.json` | Template for machine-local overrides |
 
-The first three are copied into place as they are; the fourth is a template.
+`settings.json` is a template for one reason: Windows runs a smaller plugin
+set, because `document-skills` needs LibreOffice, pandoc, poppler and Node,
+and its marketplace is only registered where it is used. Everything else in
+the file is identical on every machine.
 
-```sh
-cp claude/settings.json claude/statusline.sh claude/CLAUDE.md ~/.claude/
-```
+`settings.local.json` is **not** deployed — see
+`examples/settings.local.example.json`.
 
 **`attribution.commit` and `attribution.pr` are set to empty strings.** That
 removes the `Co-Authored-By` trailer and the *Generated with Claude Code*
@@ -427,14 +483,9 @@ without anyone noticing.
 
 ### Installing
 
-```sh
-cp .Rprofile ~/                                     # Linux, WSL
-```
-
-```powershell
-[Environment]::SetEnvironmentVariable('R_USER', $env:USERPROFILE, 'User')
-Copy-Item .Rprofile $env:USERPROFILE                # Windows, after the above
-```
+`chezmoi apply` writes `~/.Rprofile`, and on Windows
+`run_once_after_10-windows-r-user.ps1` sets the environment variable that
+makes R look there at all.
 
 **Windows needs `R_USER`.** R does not treat `%USERPROFILE%` as `~` there: it
 uses the shell's "personal" folder, which OneDrive redirects to Documents. So
@@ -460,25 +511,33 @@ shows none of it — check with `R --interactive`, or by testing whether
 **Not in this repo.** The vim configuration lives in its own:
 [chrmongeau/vimfiles](https://github.com/chrmongeau/vimfiles).
 
-That split is deliberate. Everything here is a file *copied out* to a
+That split is deliberate. Everything else here is a file *deployed* to a
 destination; vimfiles is a runtime directory that has to *be* the destination —
 `autoload/`, `after/`, `colors/` are only found if vim's `runtimepath` points at
-them. So the repo is cloned straight into place and updated with `git pull`
-there, which folding it in here would cost: it would need either a symlink
-(awkward on Windows, where `core.symlinks = false` for exactly that reason) or a
-copy, which throws away update-in-place.
+them. Cloning keeps it editable and committable in place, which a copy would
+throw away and a submodule would duplicate.
+
+chezmoi handles it as a `git-repo` external in `home/.chezmoiexternal.toml`,
+so `chezmoi init --apply` clones it along with everything else. No separate
+step, and nothing to forget.
 
 | Platform | Clone to | Entry point |
 | --- | --- | --- |
 | Windows | `~\vimfiles` | `~\_vimrc`, a one-line stub: `source $HOME/vimfiles/vimrc` |
 | Linux / WSL | `~/.vim` | none needed — vim reads `~/.vim/vimrc` natively since 7.4 |
 
-```sh
-git clone https://github.com/chrmongeau/vimfiles ~/.vim        # Linux, WSL
-git clone https://github.com/chrmongeau/vimfiles ~/vimfiles    # Windows
-```
+Those destinations are **vim's own defaults**, not a preference: the
+compiled-in `'runtimepath'` is `$HOME/vimfiles` on MS-Windows and
+`$HOME/.vim` on Unix, so a stock Windows vim never reads `.vim`. The
+external file is templated on `.chezmoi.os` for that reason.
 
-Two things in this repo depend on vim being present, so they are worth checking
-after a fresh install: the scratch notes need **gvim built `+clientserver`**
-(see Requirements), and `git/config.local` sets `core.editor = vim`, so an
-unconfigured vim means bare commit-message editing.
+`refreshPeriod = "168h"` makes a `chezmoi apply` pull vimfiles at most
+weekly; `chezmoi apply -R` forces it. Without a refresh period the clone
+is created once and **never pulled again**, which is a quiet way to run a
+year-old vim config.
+
+Two things in this repo depend on vim being present, so they are worth
+checking after a fresh install: the scratch notes need **gvim built
+`+clientserver`** (see Requirements), and `~/.config/git/config.local` sets
+`core.editor = vim`, so an unconfigured vim means bare commit-message
+editing.
