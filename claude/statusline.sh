@@ -115,6 +115,24 @@ bar() {
   echo "${fill}${pad}"
 }
 
+# fmt_duration: collapse milliseconds to at most two units, largest first, so
+# a long session reads "1d0h" instead of "1450m45s". Seconds appear only below
+# the hour mark — past that they are noise, and dropping them keeps the field
+# from growing as the session ages. No space between units, unlike fmt_reset
+# below, because this sits inline rather than in its own parenthesis.
+fmt_duration() {
+  local total=$(($1 / 1000))
+  local d=$((total / 86400))
+  local h=$(((total % 86400) / 3600))
+  local m=$(((total % 3600) / 60))
+  local s=$((total % 60))
+  if   [ "$d" -gt 0 ]; then echo "${d}d${h}h"
+  elif [ "$h" -gt 0 ]; then echo "${h}h${m}m"
+  elif [ "$m" -gt 0 ]; then echo "${m}m${s}s"
+  else                      echo "${s}s"
+  fi
+}
+
 # fmt_reset: turn a future Unix epoch into a compact "0 in Xh Ym" string
 # (or "0 in Xd Yh" once we're more than 24h out). Used for both rate-limit
 # window countdowns. Silently returns nothing if the input is empty or the
@@ -160,9 +178,8 @@ elif git --no-optional-locks rev-parse --git-dir > /dev/null 2>&1; then
   [ "$UNTRACKED" -gt 0 ] && GIT_INFO="${GIT_INFO} ${RED}?${UNTRACKED}${RESET}"
 fi
 
-# MINS / SECS: session wall-clock duration broken into m and s.
-MINS=$((DURATION_MS / 60000))
-SECS=$(((DURATION_MS % 60000) / 1000))
+# DURATION: session wall-clock, collapsed to its two largest useful units.
+DURATION=$(fmt_duration "$DURATION_MS")
 
 # DIFF_INFO: "+lines/-lines" summary, only shown if anything changed.
 DIFF_INFO=""
@@ -219,5 +236,5 @@ SUFFIX=""
 # Line 1: identity + workspace + git state + session diff
 echo -e "${CYAN}${BOLD}[${MODEL}]${RESET}${SUFFIX} 📁 ${DIR##*/}${GIT_INFO}${DIFF_INFO}${SKILLS_INFO}"
 # Line 2: context bar + Max plan limits + duration + notional API cost
-echo -e "${CTX_COLOR}${CTX_BAR}${RESET} ctx ${PCT}%${LIMITS} | ⏱️ ${MINS}m${SECS}s | ${YELLOW}${COST_FMT}${RESET}"
+echo -e "${CTX_COLOR}${CTX_BAR}${RESET} ctx ${PCT}%${LIMITS} | ⏱️ ${DURATION} | ${YELLOW}${COST_FMT}${RESET}"
 
