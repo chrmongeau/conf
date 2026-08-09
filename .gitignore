@@ -1,17 +1,30 @@
-# The git config fragments that hold an identity or are machine-specific. They
-# belong in $HOME, never here -- this list is the backstop for the day one of
-# them gets copied into the repo alongside the files that do belong.
+# Backstop, not policy. Nothing here is supposed to exist in the repo at all
+# -- these files belong in $HOME. This list is what catches the day one gets
+# copied in beside the files that do belong. The repository is public.
+#
+# No leading slash on any pattern, so they match at any depth: the git
+# fragments would land under home/dot_config/git/, not at the root.
+
+# Git identity and machine-specific fragments. `config.*` are the current
+# names, used since the config moved to ~/.config/git; the `.gitconfig.*`
+# forms are what they were called before that, and may still turn up in an
+# old backup.
+config.personal
+config.fao
+config.local
 .gitconfig.personal
 .gitconfig.fao
 .gitconfig.local
 .gitconfig.backup-*
 
-# ...but the templates are the whole point, so keep them.
-!.gitconfig.personal.example
+# The templates in examples/ are the whole point, and none of them match the
+# exact names above -- `git-config.personal.example` is not `config.personal`.
+# Keep it that way: a glob here would silently swallow them.
 
-# Claude Code. Only the shared config in claude/ is tracked; the rest of
-# ~/.claude is live state -- transcripts, credentials, plugin caches -- and
-# .credentials.json in particular must never reach a public repo.
+# Claude Code. Only the shared config under home/dot_claude/ is tracked. The
+# rest of ~/.claude is live state -- transcripts, credentials, plugin caches,
+# and projects/, which also holds the memories. .credentials.json in
+# particular must never reach a public repo.
 settings.local.json
 .credentials.json
 .claude.json
