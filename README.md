@@ -171,19 +171,27 @@ entry under the longer name.
 
 ### Installing
 
-The script does not start itself. Register it by dropping a shortcut in the
-Startup folder:
+The script does not start itself, and it is **not** run out of this
+repository. It is copied to the AutoHotkey folder under Documents, and the
+Startup shortcut points there:
 
 ```powershell
+$dir = "$env:USERPROFILE\OneDrive - Food and Agriculture Organization\Documents\AutoHotkey"
+Copy-Item AutoHotkey\autostart.ahk $dir
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut(
     "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\autostart-ahk.lnk")
-$s.TargetPath = "$env:LOCALAPPDATA\Programs\AutoHotkey\v2\AutoHotkey64.exe"
-$s.Arguments  = '"' + $env:USERPROFILE + '\conf\AutoHotkey\autostart.ahk"'
+$s.TargetPath        = "$env:LOCALAPPDATA\Programs\AutoHotkey\v2\AutoHotkey64.exe"
+$s.Arguments         = '"' + $dir + '\autostart.ahk"'
+$s.WorkingDirectory  = $dir
 $s.Save()
 ```
 
-The shortcut stores an absolute path, so it has to be recreated if this
-repository moves. Delete that one `.lnk` to undo.
+Running it from the checkout would be one less copy, but it ties the login
+to wherever this repository happens to sit. The Documents folder is stable
+and roams, so the script survives the repository being moved or deleted —
+at the cost of `autostart.ahk` being the one tracked file that needs copying
+out after an edit. The shortcut stores an absolute path either way, so it
+has to be recreated if that folder moves. Delete the one `.lnk` to undo.
 
 To check the script parses without running it:
 
