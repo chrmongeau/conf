@@ -82,6 +82,11 @@ WEEK=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 FIVE_H_RESET=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 WEEK_RESET=$(echo "$input"   | jq -r '.rate_limits.seven_day.resets_at // empty')
 
+# TRANSCRIPT: path to this session's .jsonl log. The payload has no skill or
+# plugin field of its own (see the "Available data" table in the docs above),
+# so invoked skills can only be recovered by reading the transcript.
+TRANSCRIPT=$(echo "$input" | jq -r '.transcript_path // empty')
+
 # ─── ANSI color codes ────────────────────────────────────────────────────────
 CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; RED='\033[31m'
 DIM='\033[2m'; BOLD='\033[1m'; MAGENTA='\033[35m'; RESET='\033[0m'
@@ -166,6 +171,25 @@ if [ "$LINES_ADDED" -gt 0 ] || [ "$LINES_REMOVED" -gt 0 ]; then
   DIFF_INFO=" | ${GREEN}+${LINES_ADDED}${RESET}/${RED}-${LINES_REMOVED}${RESET}"
 fi
 
+# SKILLS_INFO: how many DISTINCT skills have fired. Skills are invocations,
+# not modes -- there is no "active" set to report -- so this is a count of what
+# has run, not of what is running.
+#
+# Only the tail of the transcript is scanned: these files reach several MB and
+# this script runs on every refresh, so a full scan would be paid many times a
+# minute. 400 KB measures at ~8ms. The cost is that a skill used early in a
+# long session drops out, which is why the label means "recently", not "this
+# session". Raise SKILL_SCAN_BYTES to trade latency for reach.
+SKILL_SCAN_BYTES=400000
+SKILLS_INFO=""
+if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+  SKILL_COUNT=$(tail -c "$SKILL_SCAN_BYTES" "$TRANSCRIPT" 2>/dev/null \
+    | grep -o '"name":"Skill","input":{"skill":"[^"]*"' \
+    | sed 's/.*"skill":"//; s/"$//' \
+    | sort -u | grep -c .)
+  [ "$SKILL_COUNT" -gt 0 ] && SKILLS_INFO=" | ${MAGENTA}⚡ ${SKILL_COUNT}${RESET}"
+fi
+
 # COST_FMT: notional API cost formatted as e.g. "~$0.42 API". The "~" and
 # "API" suffix make it clear this is a hypothetical, not your actual bill.
 COST_FMT=$(printf '~$%.2f API' "$COST")
@@ -193,7 +217,7 @@ SUFFIX=""
 
 # ─── Output (two lines) ──────────────────────────────────────────────────────
 # Line 1: identity + workspace + git state + session diff
-echo -e "${CYAN}${BOLD}[${MODEL}]${RESET}${SUFFIX} 📁 ${DIR##*/}${GIT_INFO}${DIFF_INFO}"
+echo -e "${CYAN}${BOLD}[${MODEL}]${RESET}${SUFFIX} 📁 ${DIR##*/}${GIT_INFO}${DIFF_INFO}${SKILLS_INFO}"
 # Line 2: context bar + Max plan limits + duration + notional API cost
 echo -e "${CTX_COLOR}${CTX_BAR}${RESET} ctx ${PCT}%${LIMITS} | ⏱️ ${MINS}m${SECS}s | ${YELLOW}${COST_FMT}${RESET}"
 
