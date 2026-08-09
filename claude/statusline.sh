@@ -115,18 +115,21 @@ bar() {
   echo "${fill}${pad}"
 }
 
-# fmt_duration: collapse milliseconds to at most two units, largest first, so
-# a long session reads "1d0h" instead of "1450m45s". Seconds appear only below
-# the hour mark — past that they are noise, and dropping them keeps the field
-# from growing as the session ages. No space between units, unlike fmt_reset
-# below, because this sits inline rather than in its own parenthesis.
+# fmt_duration: collapse milliseconds to the largest units that carry
+# information, so a long session reads "1d0h10m" instead of "1450m45s".
+# Two units below a day, three past it: "1d0h" alone would hide up to an
+# hour of drift, which is exactly the range a day-long session sits in.
+# Seconds appear only below the hour mark — past that they are noise, and
+# dropping them stops the field widening as the session ages. No space
+# between units, unlike fmt_reset below, because this sits inline rather
+# than inside its own parentheses.
 fmt_duration() {
   local total=$(($1 / 1000))
   local d=$((total / 86400))
   local h=$(((total % 86400) / 3600))
   local m=$(((total % 3600) / 60))
   local s=$((total % 60))
-  if   [ "$d" -gt 0 ]; then echo "${d}d${h}h"
+  if   [ "$d" -gt 0 ]; then echo "${d}d${h}h${m}m"
   elif [ "$h" -gt 0 ]; then echo "${h}h${m}m"
   elif [ "$m" -gt 0 ]; then echo "${m}m${s}s"
   else                      echo "${s}s"
