@@ -29,63 +29,62 @@ fi
 
 # ─── Extract fields from Claude Code's JSON ──────────────────────────────────
 
-# MODEL: human-readable name of the model in use this session (e.g. "Opus",
-# "Sonnet 4.6"). Comes from .model.display_name.
-MODEL=$(echo "$input" | jq -r '.model.display_name')
+# One jq pass, not one per field. Each spawn costs a few milliseconds and
+# there are fourteen fields; a single @tsv line read into variables is the
+# whole extraction. Field ORDER here must match the read below.
+#
+# Two traps here, both of which silently shift every later field by one:
+#   - `// ""`, never `// empty`: inside an array, `empty` REMOVES the element
+#     rather than blanking it.
+#   - readarray over one-value-per-line, not `read` with IFS=$'\t'. Tab is
+#     IFS whitespace, so bash collapses runs of it — two adjacent empty
+#     fields would silently become one.
+#
+#   MODEL         .model.display_name — e.g. "Opus", "Sonnet 4.6"
+#   DIR           cwd; only the basename is displayed (${DIR##*/})
+#   PCT           % of the CONVERSATION context window used (0–100). NOT the
+#                 Max plan quota — that is FIVE_H / WEEK. Floored to an int.
+#   DURATION_MS   wall-clock since session start, idle time included
+#   COST          notional API cost in USD this session WOULD have cost on
+#                 pay-per-token billing. On a Max/Pro plan you do not pay it.
+#   LINES_*       cumulative lines added/removed via Edit/Write this session
+#   EFFORT        reasoning effort; reflects live /effort changes. Absent on
+#                 models without the parameter.
+#   OUTPUT_STYLE  shown only when not "default", to avoid clutter
+#   FIVE_H/WEEK   % of the Max plan's 5-hour and 7-day rolling windows, the
+#                 same numbers as claude.ai/settings/usage. The 5h window is
+#                 rolling — it resets 5h after the window's first message,
+#                 not on wall-clock boundaries. Absent until the first API
+#                 response of the session.
+#   *_RESET       Unix epoch seconds when each window resets; fmt_reset()
+#                 renders the countdown
+#   TRANSCRIPT    this session's .jsonl. The payload has no skill or plugin
+#                 field (see the docs' "Available data" table), so invoked
+#                 skills can only be recovered by reading the transcript.
+readarray -t F < <(printf '%s' "$input" | jq -r '[
+  .model.display_name // "null",
+  .workspace.current_dir // "null",
+  (.context_window.used_percentage // 0 | floor),
+  .cost.total_duration_ms // 0,
+  .cost.total_cost_usd // 0,
+  .cost.total_lines_added // 0,
+  .cost.total_lines_removed // 0,
+  .effort.level // "",
+  .output_style.name // "",
+  .rate_limits.five_hour.used_percentage // "",
+  .rate_limits.seven_day.used_percentage // "",
+  .rate_limits.five_hour.resets_at // "",
+  .rate_limits.seven_day.resets_at // "",
+  .transcript_path // ""
+] | .[]')
 
-# DIR: absolute path of the current working directory. We only display the
-# basename later (${DIR##*/}) to keep the line short.
-DIR=$(echo "$input" | jq -r '.workspace.current_dir')
-
-# PCT: percentage of the CONVERSATION context window used (0–100). This is
-# tokens-in-this-chat vs. the model's max context (e.g. 200K). It is NOT the
-# Max plan quota — that's $FIVE_H / $WEEK below. Truncated to int with cut.
-PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
-
-# DURATION_MS: wall-clock time since the session started, in milliseconds.
-# Includes idle time (you thinking), not just API time.
-DURATION_MS=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
-
-# COST: notional API cost in USD that this session WOULD HAVE COST on
-# pay-per-token API billing. On a Max/Pro plan you don't actually pay this —
-# it's shown as a reference for "what API usage am I burning equivalent to".
-COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
-
-# LINES_ADDED / LINES_REMOVED: cumulative lines of code Claude has added or
-# removed via Edit/Write tools during this session. Useful for a quick "what
-# did this session actually do" diff summary.
-LINES_ADDED=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
-LINES_REMOVED=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
-
-# EFFORT: current reasoning effort level (low / medium / high / xhigh / max).
-# Reflects live `/effort` changes mid-session. Absent for models that don't
-# support reasoning effort, in which case we just don't show it.
-EFFORT=$(echo "$input" | jq -r '.effort.level // empty')
-
-# OUTPUT_STYLE: name of the active output style. We only display it when it's
-# something other than "default" to avoid clutter.
-OUTPUT_STYLE=$(echo "$input" | jq -r '.output_style.name // empty')
-
-# FIVE_H: percentage (0–100) of the Max plan's 5-hour rolling window used.
-# This is the SAME number you see at claude.ai/settings/usage. The 5h window
-# is rolling — it resets 5h after your first message in the window, not on
-# wall-clock boundaries. Absent until the first API response in the session.
-FIVE_H=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
-
-# WEEK: percentage (0–100) of the Max plan's 7-day rolling window used. Also
-# matches claude.ai/settings/usage. Same caveat: absent until first response.
-WEEK=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
-
-# FIVE_H_RESET / WEEK_RESET: Unix epoch seconds when each window resets. Used
-# by fmt_reset() further down to render a compact countdown next to each
-# percentage (e.g. "5h: 23% (0 in 2h 14m)").
-FIVE_H_RESET=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
-WEEK_RESET=$(echo "$input"   | jq -r '.rate_limits.seven_day.resets_at // empty')
-
-# TRANSCRIPT: path to this session's .jsonl log. The payload has no skill or
-# plugin field of its own (see the "Available data" table in the docs above),
-# so invoked skills can only be recovered by reading the transcript.
-TRANSCRIPT=$(echo "$input" | jq -r '.transcript_path // empty')
+MODEL=${F[0]}        DIR=${F[1]}           PCT=${F[2]}
+DURATION_MS=${F[3]}  COST=${F[4]}
+LINES_ADDED=${F[5]}  LINES_REMOVED=${F[6]}
+EFFORT=${F[7]}       OUTPUT_STYLE=${F[8]}
+FIVE_H=${F[9]}       WEEK=${F[10]}
+FIVE_H_RESET=${F[11]} WEEK_RESET=${F[12]}
+TRANSCRIPT=${F[13]}
 
 # ─── ANSI color codes ────────────────────────────────────────────────────────
 CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; RED='\033[31m'
