@@ -177,8 +177,9 @@ fi
 #
 # Only the tail of the transcript is scanned: these files reach several MB and
 # this script runs on every refresh, so a full scan would be paid many times a
-# minute. 400 KB measures at ~8ms. The cost is that a skill used early in a
-# long session drops out, which is why the label means "recently", not "this
+# minute. At 400 KB the whole segment measures ~35ms, most of it the extra jq
+# spawn rather than the scan. The cost is that a skill used early in a long
+# session drops out, which is why the count means "recently", not "this
 # session". Raise SKILL_SCAN_BYTES to trade latency for reach.
 SKILL_SCAN_BYTES=400000
 SKILLS_INFO=""
